@@ -1,0 +1,152 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Build directories
+build/
+dist/
+bin/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.cover
+*.coverage
+.coverage
+.coverage.*
+coverage.xml
+*.lcov
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Debug files
+debug/
+*.pprof
+
+# Binary output
+mcpeg
+mcpeg-*
+
+# Test artifacts
+*.test
+*.prof
+*.mprof
+
+# Go module download cache
+go.sum.backup
+
+# Profiling data
+*.prof
+*.mprof
+*.allocs
+*.heap
+
+# Local configuration overrides
+config.local.yaml
+config.local.yml
+*.local.yaml
+*.local.yml
+
+# Secrets and credentials (never commit these!)
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+credentials/
+
+# Generated files
+generated/
+*.generated.go
+
+# Documentation build artifacts
+docs/_build/
+docs/.doctrees/
+site/
+
+# Archives
+*.tar
+*.tar.gz
+*.zip
+*.gz
+*.tgz
+
+# Backup files
+*.bak
+*.backup
+backup/
+
+# Core dumps
+core
+core.*
+
+# Lock files (except package locks)
+*.lock
+!go.mod
+!go.sum
+!package-lock.json
+!yarn.lock
+!Gemfile.lock
+!Pipfile.lock
+!poetry.lock
