@@ -80,7 +80,7 @@ import (
     "context"
     "time"
     
-    "github.com/yourusername/mcpeg/pkg/logging"
+    "github.com/osakka/mcpeg/pkg/logging"
 )
 
 // Metrics is the core metrics interface

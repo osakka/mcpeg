@@ -45,8 +45,8 @@ mcpeg/
 With this structure, imports look like:
 ```go
 import (
-    "github.com/yourusername/mcpeg/pkg/logging"
-    "github.com/yourusername/mcpeg/internal/adapter"
+    "github.com/osakka/mcpeg/pkg/logging"
+    "github.com/osakka/mcpeg/internal/adapter"
 )
 ```
 

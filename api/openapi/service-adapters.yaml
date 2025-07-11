@@ -24,7 +24,7 @@ info:
   version: "1.0.0"
   contact:
     name: MCPEG Service Adapters
-    url: https://github.com/yourusername/mcpeg
+    url: https://github.com/osakka/mcpeg
 
 servers:
   - url: http://localhost:8081

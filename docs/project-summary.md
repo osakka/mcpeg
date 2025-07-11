@@ -28,19 +28,29 @@ mcpeg/
 ├── README.md                     # Project overview
 ├── CHANGELOG.md                  # Version history
 ├── CLAUDE.md                     # AI assistant context
+├── Makefile                      # Build automation
 ├── go.mod                        # Go module definition
+├── api/                          # OpenAPI specifications
+│   └── openapi/                  # OpenAPI schema files
 ├── build/                        # Build artifacts
-├── src/                          # Source code
-│   ├── api/                      # MCP schemas (generated)
-│   ├── cmd/mcpeg/                # Main application
-│   ├── internal/                 # Private packages
-│   │   ├── adapter/              # Adapter implementations
-│   │   ├── config/               # Configuration management
-│   │   ├── mcp/                  # MCP protocol implementation
-│   │   └── validation/           # Validation framework
-│   └── pkg/                      # Public packages
-│       ├── templates/            # Template engine
-│       └── transform/            # Response transformation
+├── cmd/                          # Application entry points
+│   └── mcpeg/                    # Unified MCPEG binary
+├── internal/                     # Private packages
+│   ├── adapter/                  # Adapter implementations
+│   ├── registry/                 # Service registry and discovery
+│   ├── router/                   # MCP request routing
+│   └── server/                   # Gateway server
+├── pkg/                          # Public packages
+│   ├── codegen/                  # Code generation
+│   ├── concurrency/              # Concurrency utilities
+│   ├── context/                  # Request context
+│   ├── errors/                   # Error handling
+│   ├── health/                   # Health checking
+│   ├── logging/                  # Structured logging
+│   ├── metrics/                  # Metrics collection
+│   └── validation/               # Request validation
+├── scripts/                      # Build and utility scripts
+│   └── build.sh                  # Single source of truth build script
 └── docs/                         # Documentation
     ├── analysis-and-recommendations.md
     ├── implementation-roadmap.md

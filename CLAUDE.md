@@ -1,82 +1,142 @@
-# CLAUDE.md - AI Assistant Context
+# CLAUDE.md - AI Assistant Context & Instructions
 
-This document provides context and instructions for AI assistants working on the MCPEG project.
+This file provides essential context for AI assistants working on the MCPEG project.
 
 ## Project Overview
 
-MCPEG (Model Context Protocol Enablement Gateway) is a lightweight service that:
-- Implements the full MCP protocol specification on one side
-- Integrates with external services via REST APIs or binary calls on the other side
-- Uses YAML configuration for service wiring
-- Follows API-first development methodology
+MCPEG (Model Context Protocol Enablement Gateway) is a lightweight service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side.
 
-## Key Principles
+## Key Context for AI Assistants
 
-1. **No Divergence from MCP Spec**: API schemas must be generated directly from official MCP protocol specifications
-2. **Single Source of Truth**: Avoid redundancy; each piece of information exists in exactly one place
-3. **API-First**: Always define APIs before implementation
-4. **Code Generation**: Use code generators to ensure consistency between specs and implementation
-5. **Documentation Currency**: Keep all documentation 100% up-to-date with automated processes
+### Development Methodology: XVC Framework
 
-## Development Guidelines
+This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) principles for human-LLM collaboration:
 
-### When making changes:
-1. Check if it affects the MCP protocol compliance
-2. Update relevant ADRs if architectural decisions are made
-3. Ensure no redundant information is created
-4. Verify changes align with API-first methodology
-5. Run code generators after API schema changes
+1. **Single Source of Truth**: Every piece of information exists in exactly one place
+2. **No Redundancy**: Eliminate duplication across all systems
+3. **Surgical Precision**: Every change is intentional and well-documented
+4. **Bar-Raising Solutions**: Only implement patterns that improve the overall system
+5. **Forward Progress Only**: No regression, always building on solid foundations
+6. **Always Solve Never Mask**: Address root causes, not symptoms
 
-### Testing Commands:
-[To be added based on chosen technology stack]
+### Current Architecture
 
-### Linting Commands:
-[To be added based on chosen technology stack]
+- **Unified Binary**: Single `mcpeg` binary with subcommands (`gateway`, `codegen`, `validate`)
+- **API-First**: All functionality derives from OpenAPI specifications
+- **Single Source of Truth Build**: All build logic centralized in `scripts/build.sh`
+- **Module Path**: `github.com/osakka/mcpeg`
 
-## Project Structure
+### Essential Patterns
 
-- `/src/api/` - MCP API schema files (multiple files for single API)
-- `/docs/adrs/` - Architecture Decision Records with timeline
-- `/docs/guidelines/` - Development and contribution guidelines
-- Configuration: YAML-based service wiring
+1. **Build System**: Always use `scripts/build.sh` or delegate via Makefile
+2. **CLI Interface**: Use `mcpeg <subcommand>` pattern consistently
+3. **Logging**: LLM-optimized structured logging for complete debuggability
+4. **Error Handling**: Comprehensive error context for troubleshooting
+5. **Documentation**: All decisions documented in ADRs
 
-## Technology Decisions
+### Standardized "Wrapup" Checklist
 
-- **Language**: Go (ADR-005)
-- **Configuration**: YAML (ADR-004)
-- **Protocol**: MCP with JSON-RPC 2.0 (ADR-002)
-- **First Adapter**: REST API (ADR-006)
-- **Testing**: Built-in validation framework (ADR-007)
+When completing any significant task, execute this checklist when the user mentions 'wrapup':
 
-## Go-Specific Commands
+#### 1. Code Quality & Consistency
+- [ ] Run linting and formatting tools
+- [ ] Verify all imports use correct module path (`github.com/osakka/mcpeg`)
+- [ ] Ensure unified binary usage throughout codebase
+- [ ] Check for any remaining separate binary references
 
-### Building:
-```bash
-go build -o build/mcpeg cmd/mcpeg/main.go
+#### 2. Documentation Updates
+- [ ] Create or update relevant ADR if architectural decisions were made
+- [ ] Update CHANGELOG.md with changes (Added/Changed/Fixed sections)
+- [ ] Verify README.md reflects current functionality
+- [ ] Update project structure documentation if needed
+- [ ] Check all documentation for module path consistency
+
+#### 3. Testing & Validation
+- [ ] Build and test the unified binary functionality
+- [ ] Verify all subcommands work correctly
+- [ ] Run any existing tests
+- [ ] Validate OpenAPI specifications if modified
+
+#### 4. Git Operations
+- [ ] Stage all relevant changes
+- [ ] Create descriptive commit message following project patterns
+- [ ] Include "🤖 Generated with Claude Code" footer
+- [ ] Add "Co-Authored-By: Claude" line
+- [ ] Push to remote repository (if requested)
+
+#### 5. Communication
+- [ ] Summarize what was accomplished
+- [ ] Note any breaking changes or migration requirements
+- [ ] Highlight any remaining work or follow-up tasks
+
+### Common Patterns to Follow
+
+#### Commit Message Format
+```
+feat: implement [feature description]
+
+[Detailed explanation of changes]
+
+Changes:
+- Bullet point list of specific changes
+- Focus on the "what" and "why"
+
+Benefits:
+- List of benefits or improvements
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-### Testing:
+#### File Structure Principles
+- **cmd/**: Application entry points only
+- **internal/**: Private application code
+- **pkg/**: Public reusable packages
+- **api/**: OpenAPI specifications
+- **docs/**: All documentation with clear categorization
+- **scripts/**: Build and utility scripts
+- **build/**: Build artifacts (gitignored)
+
+#### Development Workflow
+1. Always read existing code to understand patterns
+2. Use existing utilities and frameworks
+3. Follow single source of truth principle
+4. Document architectural decisions in ADRs
+5. Update CHANGELOG.md for all changes
+6. Maintain unified binary architecture
+
+### Build System Usage
+
 ```bash
-go test ./...
-go test -race ./...
-go test -cover ./...
+# Standard commands
+./scripts/build.sh build      # Build unified binary
+./scripts/build.sh dev        # Start development server  
+./scripts/build.sh test       # Run tests
+./scripts/build.sh validate   # Validate OpenAPI specs
+
+# Via Makefile (delegates to build script)
+make build
+make dev
+make test
+make validate
 ```
 
-### Linting:
-```bash
-golangci-lint run
-go vet ./...
-```
+### Current Status
 
-### Code Generation:
-```bash
-go generate ./...
-```
+- ✅ Unified binary architecture implemented
+- ✅ Single source of truth build system
+- ✅ Comprehensive service registry and routing
+- ✅ OpenAPI-based code generation
+- 🔄 Service adapter implementations (in progress)
+- 📋 Additional discovery mechanisms (planned)
 
-## Important Patterns
+### Important Notes
 
-1. **Adapter Interface**: All adapters must implement the common Adapter interface
-2. **Context Usage**: Always pass context.Context for cancellation and timeouts
-3. **Error Wrapping**: Use `fmt.Errorf` with `%w` for error wrapping
-4. **Structured Logging**: Use structured logging (when logger is added)
-5. **Configuration Validation**: Validate all configuration at startup
+- **Never create separate binaries** - always use unified `mcpeg` binary
+- **Always check module paths** - use `github.com/osakka/mcpeg`
+- **Build system is source of truth** - modify `scripts/build.sh` not Makefile
+- **Document decisions** - create ADRs for architectural changes
+- **LLM-optimized logging** - every log entry should provide complete context
+
+This context file should be consulted before making any significant changes to ensure consistency with project principles and patterns.
