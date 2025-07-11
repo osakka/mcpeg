@@ -20,7 +20,9 @@ An Architecture Decision Record captures an important architectural decision mad
 | 2025-07-11 | [ADR-008](008-llm-optimized-logging.md) | LLM-Optimized Logging for 100% Troubleshooting | Accepted |
 | 2025-07-11 | [ADR-009](009-concurrency-and-memory-management.md) | Concurrency and Memory Management Patterns | Accepted |
 | 2025-07-11 | [ADR-010](010-multi-service-gateway.md) | Multi-Service Gateway Architecture | Accepted |
-| 2025-07-11 | [ADR-011](011-data-storage-strategy.md) | Data Storage Strategy | Proposed |
+| 2025-07-11 | [ADR-011](011-data-storage-strategy.md) | Data Storage Strategy | Accepted |
+| 2025-07-11 | [ADR-012](012-advanced-mcp-services.md) | Advanced MCP Services (Git, Editor, Search, Memory) | Proposed |
+| 2025-07-11 | [ADR-013](013-metrics-as-core-infrastructure.md) | Metrics as Core Infrastructure | Proposed |
 
 ## ADR Status
 
