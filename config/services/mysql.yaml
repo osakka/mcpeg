@@ -1,0 +1,188 @@
+# MySQL Service Adapter Configuration
+
+type: "database"
+driver: "mysql"
+description: "MySQL database adapter for MCP access"
+
+# Connection configuration
+connection:
+  host: "${MYSQL_HOST:localhost}"
+  port: "${MYSQL_PORT:3306}"
+  database: "${MYSQL_DATABASE:mcpeg_dev}"
+  username: "${MYSQL_USER:mcpeg}"
+  password: "${MYSQL_PASSWORD}"
+  
+  # Connection options
+  options:
+    charset: "utf8mb4"
+    collation: "utf8mb4_unicode_ci"
+    timeout: "10s"
+    read_timeout: "30s"
+    write_timeout: "30s"
+
+# Connection pooling
+pool:
+  max_open_connections: 10
+  max_idle_connections: 2
+  connection_max_lifetime: "1h"
+  connection_max_idle_time: "10m"
+
+# Circuit breaker (inherits from global, can override)
+circuit_breaker:
+  enabled: true
+  failure_threshold: 3      # Lower threshold for DB
+  reset_timeout: "30s"      # Faster recovery for DB
+
+# Rate limiting
+rate_limit:
+  enabled: true
+  queries_per_minute: 100
+  concurrent_queries: 5
+
+# MCP Tools provided by this adapter
+tools:
+  - name: "query_database"
+    description: "Execute SQL queries with safety limits"
+    input_schema:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "SQL query to execute"
+        limit:
+          type: "integer"
+          description: "Maximum rows to return"
+          default: 100
+          maximum: 1000
+        timeout:
+          type: "string"
+          description: "Query timeout"
+          default: "30s"
+      required: ["query"]
+    
+    # Query restrictions for safety
+    restrictions:
+      read_only: true
+      max_rows: 1000
+      timeout: "30s"
+      allowed_statements: ["SELECT", "SHOW", "DESCRIBE", "EXPLAIN"]
+      blocked_patterns:
+        - "DELETE"
+        - "DROP"
+        - "TRUNCATE"
+        - "UPDATE"
+        - "INSERT"
+        - "ALTER"
+        - "CREATE"
+  
+  - name: "get_table_schema"
+    description: "Get schema information for a table"
+    input_schema:
+      type: "object"
+      properties:
+        table_name:
+          type: "string"
+          description: "Name of the table"
+        include_indexes:
+          type: "boolean"
+          description: "Include index information"
+          default: true
+      required: ["table_name"]
+    cache_ttl: "1h"
+  
+  - name: "explain_query"
+    description: "Get query execution plan"
+    input_schema:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "SQL query to explain"
+      required: ["query"]
+
+# MCP Resources provided by this adapter
+resources:
+  - pattern: "mysql://schema/{table}"
+    description: "Table schema information"
+    handler: "get_table_schema"
+    cache_ttl: "1h"
+    mime_type: "application/json"
+  
+  - pattern: "mysql://data/{table}"
+    description: "Sample table data"
+    handler: "get_sample_data"
+    cache_ttl: "5m"
+    mime_type: "application/json"
+    options:
+      max_rows: 10
+      
+  - pattern: "mysql://indexes/{table}"
+    description: "Table index information"
+    handler: "get_table_indexes"
+    cache_ttl: "1h"
+    mime_type: "application/json"
+
+# MCP Prompts provided by this adapter
+prompts:
+  - name: "sql_optimization"
+    description: "Analyze and optimize SQL queries"
+    arguments:
+      - name: "query"
+        description: "SQL query to optimize"
+        required: true
+      - name: "table_stats"
+        description: "Include table statistics"
+        required: false
+    template: |
+      Analyze this SQL query for optimization opportunities:
+      
+      Query: {{.query}}
+      
+      {{if .table_stats}}
+      Consider the following table statistics:
+      {{.table_stats}}
+      {{end}}
+      
+      Provide recommendations for:
+      1. Index usage and optimization
+      2. Query structure improvements
+      3. Performance considerations
+      4. Alternative approaches
+  
+  - name: "schema_analysis"
+    description: "Analyze database schema design"
+    arguments:
+      - name: "tables"
+        description: "Tables to analyze"
+        required: true
+    template: |
+      Analyze the database schema for the following tables:
+      {{.tables}}
+      
+      Review for:
+      1. Normalization issues
+      2. Index optimization
+      3. Foreign key relationships
+      4. Data type choices
+      5. Naming conventions
+
+# Logging configuration (adapter-specific)
+logging:
+  # Log all queries for development
+  log_queries: true
+  log_slow_queries: true
+  slow_query_threshold: "1s"
+  
+  # Sensitive data handling
+  mask_passwords: true
+  mask_sensitive_columns:
+    - "password"
+    - "token"
+    - "secret"
+    - "key"
+
+# Health check configuration
+health_check:
+  query: "SELECT 1"
+  timeout: "5s"
+  interval: "30s"

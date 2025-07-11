@@ -1,0 +1,130 @@
+# MCPEG Configuration
+# Model Context Protocol Enablement Gateway
+
+version: "1.0"
+
+metadata:
+  name: "mcpeg-dev"
+  description: "Development MCPEG instance"
+  environment: "development"
+
+# Global settings applied to all services
+global:
+  timeout: "30s"
+  memory_limit_mb: 512
+  log_level: "debug"
+  
+  # Circuit breaker defaults
+  circuit_breaker:
+    failure_threshold: 5
+    reset_timeout: "60s"
+    half_open_max: 3
+
+# Transport configuration
+transports:
+  stdio:
+    enabled: true
+    
+  http:
+    enabled: false
+    port: 8080
+    host: "0.0.0.0"
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+
+# Service definitions
+services:
+  # MySQL database adapter
+  mysql:
+    enabled: true
+    config_file: "services/mysql.yaml"
+    
+  # HashiCorp Vault secrets
+  vault:
+    enabled: false  # Disabled by default
+    config_file: "services/vault.yaml"
+    
+  # Weather API service
+  weather:
+    enabled: true
+    config_file: "services/weather.yaml"
+    
+  # Script execution service
+  script:
+    enabled: true
+    config_file: "services/script.yaml"
+
+# Storage configuration
+storage:
+  # Runtime data (metrics, state)
+  runtime:
+    type: "memory"           # memory, file, sqlite
+    persistence: true        # Save snapshots to disk
+    snapshot_interval: "5m"  # How often to snapshot
+    snapshot_path: "data/runtime"
+    
+  # Response caching
+  cache:
+    type: "memory"           # memory, redis
+    max_size_mb: 100
+    default_ttl: "10m"
+    cleanup_interval: "1m"
+    
+  # Log storage
+  logs:
+    type: "file"             # file, stdout, syslog
+    path: "data/logs"
+    level: "debug"           # Override global log level
+    rotation:
+      enabled: true
+      max_size_mb: 100
+      max_files: 10
+      max_age_days: 30
+
+# Monitoring and observability
+monitoring:
+  metrics:
+    enabled: true
+    interval: "30s"
+    
+  health_checks:
+    enabled: true
+    interval: "10s"
+    timeout: "5s"
+    
+  profiling:
+    enabled: false           # Enable in development only
+    port: 6060
+
+# Security settings
+security:
+  # Secret management
+  secrets:
+    provider: "file"         # file, vault, env
+    file_path: "secrets/api-keys.yaml"
+    
+  # Request validation
+  validation:
+    max_request_size_mb: 10
+    rate_limit:
+      enabled: false
+      requests_per_minute: 60
+      
+  # Authentication (for HTTP transport)
+  auth:
+    enabled: false
+    type: "bearer"           # bearer, basic, mtls
+    token: "${MCPEG_AUTH_TOKEN}"
+
+# Development settings
+development:
+  # Auto-reload configuration on file changes
+  hot_reload: true
+  
+  # Enable test endpoints
+  test_endpoints: true
+  
+  # Mock external services
+  mock_services: false

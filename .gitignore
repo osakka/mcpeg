@@ -115,6 +115,13 @@ config.local.yml
 *.p12
 secrets/
 credentials/
+config/secrets/*.yaml
+config/secrets/*.yml
+
+# Runtime data
+data/
+*.pid
+*.db
 
 # Generated files
 generated/

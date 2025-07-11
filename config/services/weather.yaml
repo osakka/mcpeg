@@ -1,0 +1,254 @@
+# Weather API Service Adapter Configuration
+
+type: "rest"
+driver: "weather_gov"
+description: "US National Weather Service API adapter"
+
+# API configuration
+api:
+  base_url: "https://api.weather.gov"
+  timeout: "10s"
+  user_agent: "MCPEG/0.1.0 (github.com/yourusername/mcpeg)"
+  
+  # Rate limiting (respect NWS guidelines)
+  rate_limit:
+    requests_per_minute: 300
+    burst: 5
+
+# Authentication (NWS API doesn't require auth, but structure for other APIs)
+auth:
+  type: "none"
+  # For APIs that need auth:
+  # type: "api_key"
+  # api_key: "${WEATHER_API_KEY}"
+  # header: "X-API-Key"
+
+# Circuit breaker configuration
+circuit_breaker:
+  enabled: true
+  failure_threshold: 5
+  reset_timeout: "60s"
+
+# Caching configuration (weather data changes slowly)
+cache:
+  default_ttl: "10m"
+  current_weather_ttl: "5m"
+  forecast_ttl: "30m"
+  alerts_ttl: "1m"
+
+# MCP Tools
+tools:
+  - name: "get_current_weather"
+    description: "Get current weather conditions for a location"
+    input_schema:
+      type: "object"
+      properties:
+        latitude:
+          type: "number"
+          description: "Latitude coordinate"
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: "number" 
+          description: "Longitude coordinate"
+          minimum: -180
+          maximum: 180
+        location:
+          type: "string"
+          description: "Location name (alternative to lat/lon)"
+      oneOf:
+        - required: ["latitude", "longitude"]
+        - required: ["location"]
+    
+    # API mapping
+    endpoint: "/points/{lat},{lon}"
+    method: "GET"
+    response_transform: "current_weather"
+  
+  - name: "get_forecast"
+    description: "Get weather forecast for a location"
+    input_schema:
+      type: "object"
+      properties:
+        latitude:
+          type: "number"
+          description: "Latitude coordinate"
+        longitude:
+          type: "number"
+          description: "Longitude coordinate"
+        location:
+          type: "string"
+          description: "Location name"
+        days:
+          type: "integer"
+          description: "Number of days to forecast"
+          default: 7
+          minimum: 1
+          maximum: 14
+      oneOf:
+        - required: ["latitude", "longitude"]
+        - required: ["location"]
+    
+    endpoint: "/points/{lat},{lon}/forecast"
+    method: "GET"
+    response_transform: "forecast"
+  
+  - name: "get_weather_alerts"
+    description: "Get active weather alerts for a location"
+    input_schema:
+      type: "object"
+      properties:
+        state:
+          type: "string"
+          description: "US state code (e.g., 'CA', 'TX')"
+        zone:
+          type: "string"
+          description: "Weather zone ID"
+        active:
+          type: "boolean"
+          description: "Only active alerts"
+          default: true
+      anyOf:
+        - required: ["state"]
+        - required: ["zone"]
+    
+    endpoint: "/alerts"
+    method: "GET"
+    query_params:
+      - name: "area"
+        value: "{state}"
+      - name: "zone"
+        value: "{zone}"
+      - name: "status"
+        value: "actual"
+        condition: "{active}"
+
+# MCP Resources
+resources:
+  - pattern: "weather://current/{location}"
+    description: "Current weather conditions"
+    handler: "get_current_weather_resource"
+    cache_ttl: "5m"
+    mime_type: "application/json"
+  
+  - pattern: "weather://forecast/{location}"
+    description: "Weather forecast"
+    handler: "get_forecast_resource"
+    cache_ttl: "30m"
+    mime_type: "application/json"
+  
+  - pattern: "weather://alerts/{state}"
+    description: "Weather alerts for state"
+    handler: "get_alerts_resource"
+    cache_ttl: "1m"
+    mime_type: "application/json"
+
+# MCP Prompts
+prompts:
+  - name: "weather_analysis"
+    description: "Analyze weather patterns and trends"
+    arguments:
+      - name: "location"
+        description: "Location to analyze"
+        required: true
+      - name: "days"
+        description: "Number of days to analyze"
+        required: false
+    template: |
+      Analyze the weather patterns for {{.location}}:
+      
+      {{if .days}}
+      Focus on the next {{.days}} days.
+      {{else}}
+      Provide current conditions and short-term outlook.
+      {{end}}
+      
+      Include analysis of:
+      1. Current conditions and trends
+      2. Temperature patterns
+      3. Precipitation likelihood
+      4. Wind conditions
+      5. Any weather advisories or alerts
+      6. Recommendations for outdoor activities
+  
+  - name: "travel_weather_advisory"
+    description: "Weather advisory for travel planning"
+    arguments:
+      - name: "origin"
+        description: "Starting location"
+        required: true
+      - name: "destination"
+        description: "Destination location"
+        required: true
+      - name: "travel_date"
+        description: "Date of travel"
+        required: true
+    template: |
+      Weather advisory for travel from {{.origin}} to {{.destination}} on {{.travel_date}}:
+      
+      Provide:
+      1. Weather conditions at origin
+      2. Weather conditions at destination
+      3. Weather along travel route (if applicable)
+      4. Travel recommendations
+      5. Potential weather-related delays or hazards
+      6. Suggested departure times
+      7. What to pack based on conditions
+
+# Response transformations
+transformations:
+  current_weather:
+    template: |
+      {
+        "location": "{{.properties.relativeLocation.properties.city}}, {{.properties.relativeLocation.properties.state}}",
+        "temperature": "{{.properties.temperature.value}}",
+        "unit": "{{.properties.temperature.unitCode}}",
+        "conditions": "{{.properties.textDescription}}",
+        "humidity": "{{.properties.relativeHumidity.value}}",
+        "wind_speed": "{{.properties.windSpeed.value}}",
+        "wind_direction": "{{.properties.windDirection.value}}",
+        "updated": "{{.properties.timestamp}}"
+      }
+  
+  forecast:
+    template: |
+      {
+        "location": "{{.properties.location}}",
+        "updated": "{{.properties.updated}}",
+        "periods": [
+          {{range .properties.periods}}
+          {
+            "name": "{{.name}}",
+            "temperature": {{.temperature}},
+            "temperatureUnit": "{{.temperatureUnit}}",
+            "forecast": "{{.detailedForecast}}",
+            "shortForecast": "{{.shortForecast}}",
+            "isDaytime": {{.isDaytime}}
+          }{{if not (last .)},{{end}}
+          {{end}}
+        ]
+      }
+
+# Error handling
+error_handling:
+  # Map API errors to MCP errors
+  error_mappings:
+    404: "Location not found"
+    429: "Rate limit exceeded"
+    500: "Weather service unavailable"
+  
+  # Retry configuration
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff: "exponential"
+    initial_delay: "1s"
+    max_delay: "10s"
+
+# Health check
+health_check:
+  endpoint: "/alerts"
+  method: "GET"
+  timeout: "5s"
+  interval: "60s"
+  expected_status: 200
