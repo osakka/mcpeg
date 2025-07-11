@@ -2,8 +2,12 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -549,6 +553,25 @@ type SelectionCriteria struct {
 	LoadBalancing  string                 `json:"load_balancing,omitempty"`
 }
 
+// TriggerDiscovery manually triggers service discovery
+func (sr *ServiceRegistry) TriggerDiscovery(ctx context.Context) error {
+	if sr.discovery == nil {
+		return fmt.Errorf("service discovery not enabled")
+	}
+	
+	sr.logger.Info("manual_service_discovery_triggered")
+	return sr.discovery.DiscoverServices(ctx)
+}
+
+// GetDiscoveredServices returns all discovered services
+func (sr *ServiceRegistry) GetDiscoveredServices() map[string]*DiscoveredService {
+	if sr.discovery == nil {
+		return make(map[string]*DiscoveredService)
+	}
+	
+	return sr.discovery.GetDiscoveredServices()
+}
+
 // Shutdown gracefully shuts down the service registry
 func (sr *ServiceRegistry) Shutdown() error {
 	sr.logger.Info("service_registry_shutting_down")
@@ -626,11 +649,316 @@ func (sr *ServiceRegistry) updateCapabilitiesAfterRemoval(service *RegisteredSer
 }
 
 func (sr *ServiceRegistry) performHealthCheck(ctx context.Context, service *RegisteredService) error {
-	// This would make an actual HTTP request to the service's health endpoint
-	// For now, we'll simulate a successful health check
-	service.Health = HealthHealthy
-	service.lastHealth = time.Now()
+	startTime := time.Now()
+	sr.logger.Debug("service_health_check_started", 
+		"service_id", service.ID,
+		"service_name", service.Name,
+		"endpoint", service.Endpoint)
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+			IdleConnTimeout:   3 * time.Second,
+		},
+	}
+
+	// Construct health check URL
+	healthURL := sr.buildHealthCheckURL(service)
+	
+	// Create HTTP request with context
+	req, err := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
+	if err != nil {
+		sr.logger.Error("service_health_check_request_creation_failed",
+			"service_id", service.ID,
+			"health_url", healthURL,
+			"error", err)
+		return sr.updateServiceHealth(service, HealthUnhealthy, err, time.Since(startTime))
+	}
+
+	// Set user agent and other headers
+	req.Header.Set("User-Agent", "MCPEG-HealthChecker/1.0")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	
+	// Add authentication if configured
+	if err := sr.addHealthCheckAuth(req, service); err != nil {
+		sr.logger.Warn("service_health_check_auth_failed",
+			"service_id", service.ID,
+			"error", err)
+	}
+
+	// Perform the health check request
+	resp, err := client.Do(req)
+	if err != nil {
+		sr.logger.Error("service_health_check_request_failed",
+			"service_id", service.ID,
+			"health_url", healthURL,
+			"error", err)
+		return sr.updateServiceHealth(service, HealthUnhealthy, err, time.Since(startTime))
+	}
+	defer resp.Body.Close()
+
+	// Validate response
+	if err := sr.validateHealthCheckResponse(resp, service); err != nil {
+		sr.logger.Error("service_health_check_validation_failed",
+			"service_id", service.ID,
+			"status_code", resp.StatusCode,
+			"error", err)
+		return sr.updateServiceHealth(service, HealthUnhealthy, err, time.Since(startTime))
+	}
+
+	// Health check successful
+	duration := time.Since(startTime)
+	sr.logger.Debug("service_health_check_successful",
+		"service_id", service.ID,
+		"status_code", resp.StatusCode,
+		"response_time_ms", duration.Milliseconds())
+
+	return sr.updateServiceHealth(service, HealthHealthy, nil, duration)
+}
+
+// buildHealthCheckURL constructs the health check URL for a service
+func (sr *ServiceRegistry) buildHealthCheckURL(service *RegisteredService) string {
+	// Use custom health path if specified in metadata
+	healthPath := service.Metadata["health_path"]
+	if healthPath == "" {
+		healthPath = "/health" // default
+	}
+
+	// Determine protocol
+	protocol := "http"
+	if useTLS, ok := service.Metadata["tls"]; ok && useTLS == "true" {
+		protocol = "https"
+	}
+
+	// Build URL
+	return fmt.Sprintf("%s://%s%s", protocol, service.Endpoint, healthPath)
+}
+
+// addHealthCheckAuth adds authentication headers if configured
+func (sr *ServiceRegistry) addHealthCheckAuth(req *http.Request, service *RegisteredService) error {
+	// API Key authentication
+	if apiKey := service.Metadata["health_api_key"]; apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+		return nil
+	}
+
+	// Bearer token authentication
+	if token := service.Metadata["health_token"]; token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+		return nil
+	}
+
+	// Basic authentication
+	if username := service.Metadata["health_username"]; username != "" {
+		password := service.Metadata["health_password"]
+		req.SetBasicAuth(username, password)
+		return nil
+	}
+
+	// Custom header authentication
+	if headerName := service.Metadata["health_header_name"]; headerName != "" {
+		headerValue := service.Metadata["health_header_value"]
+		if headerValue == "" {
+			return fmt.Errorf("health check header value not specified")
+		}
+		req.Header.Set(headerName, headerValue)
+		return nil
+	}
+
 	return nil
+}
+
+// validateHealthCheckResponse validates the health check response
+func (sr *ServiceRegistry) validateHealthCheckResponse(resp *http.Response, service *RegisteredService) error {
+	// Check status code
+	expectedStatus := sr.getExpectedHealthStatus(service)
+	if !sr.isValidHealthStatus(resp.StatusCode, expectedStatus) {
+		return fmt.Errorf("unexpected status code: %d, expected one of %v", resp.StatusCode, expectedStatus)
+	}
+
+	// Read response body for additional validation
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096)) // Limit to 4KB
+	if err != nil {
+		sr.logger.Warn("service_health_check_body_read_failed",
+			"service_id", service.ID,
+			"error", err)
+		// Don't fail health check if we can't read body but status is good
+		return nil
+	}
+
+	// Validate response content if configured
+	return sr.validateHealthResponseContent(body, service)
+}
+
+// getExpectedHealthStatus returns expected status codes for health checks
+func (sr *ServiceRegistry) getExpectedHealthStatus(service *RegisteredService) []int {
+	// Check if custom status codes are configured
+	if statusStr := service.Metadata["health_expected_status"]; statusStr != "" {
+		return sr.parseStatusCodes(statusStr)
+	}
+
+	// Default expected status codes
+	return []int{200, 204}
+}
+
+// parseStatusCodes parses comma-separated status codes
+func (sr *ServiceRegistry) parseStatusCodes(statusStr string) []int {
+	var codes []int
+	parts := strings.Split(statusStr, ",")
+	
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if code, err := strconv.Atoi(part); err == nil {
+			codes = append(codes, code)
+		}
+	}
+	
+	if len(codes) == 0 {
+		return []int{200} // fallback
+	}
+	
+	return codes
+}
+
+// isValidHealthStatus checks if status code is in expected list
+func (sr *ServiceRegistry) isValidHealthStatus(statusCode int, expected []int) bool {
+	for _, code := range expected {
+		if statusCode == code {
+			return true
+		}
+	}
+	return false
+}
+
+// validateHealthResponseContent validates response body content
+func (sr *ServiceRegistry) validateHealthResponseContent(body []byte, service *RegisteredService) error {
+	if len(body) == 0 {
+		return nil // Empty body is OK
+	}
+
+	// Check for expected response content
+	expectedContent := service.Metadata["health_expected_content"]
+	if expectedContent != "" {
+		bodyStr := string(body)
+		if !strings.Contains(bodyStr, expectedContent) {
+			return fmt.Errorf("response body does not contain expected content: %s", expectedContent)
+		}
+	}
+
+	// Try to parse as JSON for structured health responses
+	if strings.HasPrefix(string(body), "{") {
+		return sr.validateJSONHealthResponse(body, service)
+	}
+
+	return nil
+}
+
+// validateJSONHealthResponse validates JSON health check responses
+func (sr *ServiceRegistry) validateJSONHealthResponse(body []byte, service *RegisteredService) error {
+	var healthResp map[string]interface{}
+	
+	if err := json.Unmarshal(body, &healthResp); err != nil {
+		// JSON parsing failed, but that's OK for health checks
+		sr.logger.Debug("service_health_response_json_parse_failed",
+			"service_id", service.ID,
+			"error", err)
+		return nil
+	}
+
+	// Check status field in JSON response
+	if status, ok := healthResp["status"].(string); ok {
+		expectedJSONStatus := service.Metadata["health_expected_json_status"]
+		if expectedJSONStatus == "" {
+			expectedJSONStatus = "ok,healthy,up" // common status values
+		}
+		
+		validStatuses := strings.Split(expectedJSONStatus, ",")
+		statusValid := false
+		for _, validStatus := range validStatuses {
+			if strings.EqualFold(strings.TrimSpace(validStatus), status) {
+				statusValid = true
+				break
+			}
+		}
+		
+		if !statusValid {
+			return fmt.Errorf("JSON status field indicates unhealthy: %s", status)
+		}
+	}
+
+	// Log detailed health response for debugging
+	sr.logger.Debug("service_health_json_response_received",
+		"service_id", service.ID,
+		"response", string(body))
+
+	return nil
+}
+
+// updateServiceHealth updates service health status and metrics
+func (sr *ServiceRegistry) updateServiceHealth(service *RegisteredService, health HealthStatus, err error, duration time.Duration) error {
+	service.Health = health
+	service.lastHealth = time.Now()
+
+	// Record health check metrics
+	sr.recordHealthCheckMetrics(service, health, duration, err)
+
+	// Update failure count for circuit breaker logic
+	if health == HealthUnhealthy {
+		service.FailureCount++
+		if service.FailureCount >= sr.maxFailures {
+			service.Status = StatusUnavailable
+			sr.logger.Warn("service_marked_unavailable_due_to_health_failures",
+				"service_id", service.ID,
+				"failure_count", service.FailureCount,
+				"max_failures", sr.maxFailures)
+		}
+	} else {
+		service.FailureCount = 0
+		if service.Status == StatusUnavailable {
+			service.Status = StatusActive
+			sr.logger.Info("service_recovered_from_health_failures",
+				"service_id", service.ID)
+		}
+	}
+
+	return err
+}
+
+// recordHealthCheckMetrics records metrics for health check operations
+func (sr *ServiceRegistry) recordHealthCheckMetrics(service *RegisteredService, health HealthStatus, duration time.Duration, err error) {
+	labels := []string{
+		"service_id", service.ID,
+		"service_name", service.Name,
+		"service_type", service.Type,
+		"health_status", string(health),
+	}
+
+	// Record health check duration
+	sr.metrics.Observe("service_health_check_duration_ms", float64(duration.Milliseconds()), labels...)
+
+	// Record health check result
+	if health == HealthHealthy {
+		sr.metrics.Inc("service_health_check_success_total", labels...)
+	} else {
+		sr.metrics.Inc("service_health_check_failure_total", labels...)
+	}
+
+	// Record specific error types
+	if err != nil {
+		errorType := "unknown"
+		if strings.Contains(err.Error(), "timeout") {
+			errorType = "timeout"
+		} else if strings.Contains(err.Error(), "connection") {
+			errorType = "connection"
+		} else if strings.Contains(err.Error(), "status code") {
+			errorType = "status_code"
+		}
+
+		errorLabels := append(labels, "error_type", errorType)
+		sr.metrics.Inc("service_health_check_error_total", errorLabels...)
+	}
 }
 
 func (sr *ServiceRegistry) recordRegistrationMetrics(service *RegisteredService, duration time.Duration) {

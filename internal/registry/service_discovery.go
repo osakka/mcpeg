@@ -4,8 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -506,8 +511,73 @@ func NewConsulDiscovery(config DiscoveryConfig, logger logging.Logger, metrics m
 }
 
 func (c *ConsulDiscovery) Discover(ctx context.Context) ([]*DiscoveredService, error) {
-	// Placeholder for Consul discovery implementation
-	return []*DiscoveredService{}, nil
+	c.logger.Debug("consul_discovery_started", "address", c.config.ConsulAddress)
+	
+	client := &http.Client{Timeout: c.config.DiscoveryTimeout}
+	
+	// Query Consul for healthy services
+	consulURL := fmt.Sprintf("http://%s/v1/health/service/%s?passing=true", 
+		c.config.ConsulAddress, c.config.ConsulService)
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", consulURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Consul request: %w", err)
+	}
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Consul request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Consul returned HTTP %d", resp.StatusCode)
+	}
+	
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Consul response: %w", err)
+	}
+	
+	var consulServices []ConsulHealthCheck
+	if err := json.Unmarshal(body, &consulServices); err != nil {
+		return nil, fmt.Errorf("failed to parse Consul response: %w", err)
+	}
+	
+	var services []*DiscoveredService
+	for _, consulSvc := range consulServices {
+		service := &DiscoveredService{
+			ID:       fmt.Sprintf("consul-%s-%s", consulSvc.Service.Service, consulSvc.Service.ID),
+			Name:     consulSvc.Service.Service,
+			Type:     getConsulServiceType(consulSvc.Service.Tags),
+			Address:  consulSvc.Service.Address,
+			Port:     consulSvc.Service.Port,
+			Protocol: getConsulProtocol(consulSvc.Service.Tags),
+			Tags:     consulSvc.Service.Tags,
+			DiscoveredAt: time.Now(),
+			Source:   "consul",
+			Metadata: map[string]interface{}{
+				"consul_id":      consulSvc.Service.ID,
+				"consul_meta":    consulSvc.Service.Meta,
+				"datacenter":     consulSvc.Node.Datacenter,
+				"node":          consulSvc.Node.Node,
+				"node_address":  consulSvc.Node.Address,
+			},
+		}
+		
+		// Use node address if service address is empty
+		if service.Address == "" {
+			service.Address = consulSvc.Node.Address
+		}
+		
+		services = append(services, service)
+	}
+	
+	c.logger.Debug("consul_discovery_completed", 
+		"services_found", len(services),
+		"consul_response_count", len(consulServices))
+	
+	return services, nil
 }
 
 // Kubernetes Discovery (placeholder)
@@ -526,8 +596,98 @@ func NewKubernetesDiscovery(config DiscoveryConfig, logger logging.Logger, metri
 }
 
 func (k *KubernetesDiscovery) Discover(ctx context.Context) ([]*DiscoveredService, error) {
-	// Placeholder for Kubernetes discovery implementation
-	return []*DiscoveredService{}, nil
+	k.logger.Debug("k8s_discovery_started", 
+		"namespace", k.config.K8sNamespace,
+		"label_selector", k.config.K8sLabelSelector)
+	
+	// Check if running in Kubernetes
+	if !k.isRunningInKubernetes() {
+		k.logger.Debug("not_running_in_kubernetes", "skip_discovery", true)
+		return []*DiscoveredService{}, nil
+	}
+	
+	// Get Kubernetes API client
+	client := &http.Client{Timeout: k.config.DiscoveryTimeout}
+	
+	// Get service account token
+	token, err := k.getServiceAccountToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service account token: %w", err)
+	}
+	
+	// Query Kubernetes API for services
+	apiURL := fmt.Sprintf("https://kubernetes.default.svc/api/v1/namespaces/%s/services", k.config.K8sNamespace)
+	if k.config.K8sLabelSelector != "" {
+		values := url.Values{}
+		values.Set("labelSelector", k.config.K8sLabelSelector)
+		apiURL += "?" + values.Encode()
+	}
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes API request: %w", err)
+	}
+	
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Kubernetes API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Kubernetes API returned HTTP %d", resp.StatusCode)
+	}
+	
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Kubernetes API response: %w", err)
+	}
+	
+	var k8sResponse KubernetesServiceList
+	if err := json.Unmarshal(body, &k8sResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse Kubernetes API response: %w", err)
+	}
+	
+	var services []*DiscoveredService
+	for _, k8sSvc := range k8sResponse.Items {
+		// Skip services without MCP annotation
+		if !isK8sMCPService(k8sSvc) {
+			continue
+		}
+		
+		for _, port := range k8sSvc.Spec.Ports {
+			service := &DiscoveredService{
+				ID:       fmt.Sprintf("k8s-%s-%s-%d", k8sSvc.Metadata.Namespace, k8sSvc.Metadata.Name, port.Port),
+				Name:     k8sSvc.Metadata.Name,
+				Type:     getK8sServiceType(k8sSvc.Metadata.Annotations),
+				Address:  k8sSvc.Spec.ClusterIP,
+				Port:     int(port.Port),
+				Protocol: getK8sProtocol(k8sSvc.Metadata.Annotations, port.Name),
+				Tags:     getK8sTags(k8sSvc.Metadata.Labels),
+				DiscoveredAt: time.Now(),
+				Source:   "kubernetes",
+				Metadata: map[string]interface{}{
+					"namespace":   k8sSvc.Metadata.Namespace,
+					"labels":      k8sSvc.Metadata.Labels,
+					"annotations": k8sSvc.Metadata.Annotations,
+					"port_name":   port.Name,
+					"port_protocol": port.Protocol,
+					"selector":    k8sSvc.Spec.Selector,
+				},
+			}
+			
+			services = append(services, service)
+		}
+	}
+	
+	k.logger.Debug("k8s_discovery_completed", 
+		"services_found", len(services),
+		"k8s_services_checked", len(k8sResponse.Items))
+	
+	return services, nil
 }
 
 // Helper functions
@@ -568,6 +728,226 @@ func getStringFromMetadata(metadata map[string]interface{}, key, defaultValue st
 		}
 	}
 	return defaultValue
+}
+
+// Consul data structures
+type ConsulHealthCheck struct {
+	Node    ConsulNode    `json:"Node"`
+	Service ConsulService `json:"Service"`
+	Checks  []ConsulCheck `json:"Checks"`
+}
+
+type ConsulNode struct {
+	ID         string            `json:"ID"`
+	Node       string            `json:"Node"`
+	Address    string            `json:"Address"`
+	Datacenter string            `json:"Datacenter"`
+	TaggedAddresses map[string]interface{} `json:"TaggedAddresses"`
+	Meta       map[string]string `json:"Meta"`
+}
+
+type ConsulService struct {
+	ID      string            `json:"ID"`
+	Service string            `json:"Service"`
+	Tags    []string          `json:"Tags"`
+	Meta    map[string]string `json:"Meta"`
+	Port    int               `json:"Port"`
+	Address string            `json:"Address"`
+	Weights struct {
+		Passing int `json:"Passing"`
+		Warning int `json:"Warning"`
+	} `json:"Weights"`
+}
+
+type ConsulCheck struct {
+	Node        string   `json:"Node"`
+	CheckID     string   `json:"CheckID"`
+	Name        string   `json:"Name"`
+	Status      string   `json:"Status"`
+	Notes       string   `json:"Notes"`
+	Output      string   `json:"Output"`
+	ServiceID   string   `json:"ServiceID"`
+	ServiceName string   `json:"ServiceName"`
+	ServiceTags []string `json:"ServiceTags"`
+}
+
+// Kubernetes data structures
+type KubernetesServiceList struct {
+	APIVersion string                `json:"apiVersion"`
+	Kind       string                `json:"kind"`
+	Metadata   KubernetesListMeta    `json:"metadata"`
+	Items      []KubernetesService   `json:"items"`
+}
+
+type KubernetesListMeta struct {
+	SelfLink        string `json:"selfLink"`
+	ResourceVersion string `json:"resourceVersion"`
+}
+
+type KubernetesService struct {
+	APIVersion string                    `json:"apiVersion"`
+	Kind       string                    `json:"kind"`
+	Metadata   KubernetesObjectMeta      `json:"metadata"`
+	Spec       KubernetesServiceSpec     `json:"spec"`
+	Status     KubernetesServiceStatus   `json:"status"`
+}
+
+type KubernetesObjectMeta struct {
+	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace"`
+	UID         string            `json:"uid"`
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
+}
+
+type KubernetesServiceSpec struct {
+	Type                     string                     `json:"type"`
+	Selector                 map[string]string          `json:"selector"`
+	ClusterIP               string                     `json:"clusterIP"`
+	ClusterIPs              []string                   `json:"clusterIPs"`
+	Ports                   []KubernetesServicePort    `json:"ports"`
+	ExternalIPs             []string                   `json:"externalIPs"`
+	LoadBalancerIP          string                     `json:"loadBalancerIP"`
+	LoadBalancerSourceRanges []string                  `json:"loadBalancerSourceRanges"`
+}
+
+type KubernetesServicePort struct {
+	Name       string `json:"name"`
+	Protocol   string `json:"protocol"`
+	Port       int32  `json:"port"`
+	TargetPort interface{} `json:"targetPort"`
+	NodePort   int32  `json:"nodePort"`
+}
+
+type KubernetesServiceStatus struct {
+	LoadBalancer struct {
+		Ingress []struct {
+			IP       string `json:"ip"`
+			Hostname string `json:"hostname"`
+		} `json:"ingress"`
+	} `json:"loadBalancer"`
+}
+
+// Helper functions for Consul discovery
+func getConsulServiceType(tags []string) string {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "mcp-type:") {
+			return strings.TrimPrefix(tag, "mcp-type:")
+		}
+	}
+	// Default to mcp_adapter if no specific type tag found
+	return "mcp_adapter"
+}
+
+func getConsulProtocol(tags []string) string {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "protocol:") {
+			return strings.TrimPrefix(tag, "protocol:")
+		}
+		if tag == "https" || tag == "tls" {
+			return "https"
+		}
+	}
+	return "http"
+}
+
+// Helper functions for Kubernetes discovery
+func (k *KubernetesDiscovery) isRunningInKubernetes() bool {
+	// Check if service account token exists
+	if _, err := k.getServiceAccountToken(); err != nil {
+		return false
+	}
+	
+	// Check if Kubernetes API is accessible
+	return true
+}
+
+func (k *KubernetesDiscovery) getServiceAccountToken() (string, error) {
+	tokenPath := "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	token, err := os.ReadFile(tokenPath)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(token)), nil
+}
+
+func isK8sMCPService(svc KubernetesService) bool {
+	// Check for MCP annotation
+	if annotations := svc.Metadata.Annotations; annotations != nil {
+		if mcp, exists := annotations["mcpeg.io/mcp-service"]; exists && mcp == "true" {
+			return true
+		}
+		if _, exists := annotations["mcpeg.io/service-type"]; exists {
+			return true
+		}
+	}
+	
+	// Check for MCP label
+	if labels := svc.Metadata.Labels; labels != nil {
+		if app, exists := labels["app"]; exists && (app == "mcp-adapter" || strings.Contains(app, "mcp")) {
+			return true
+		}
+		if _, exists := labels["mcpeg.io/mcp-service"]; exists {
+			return true
+		}
+	}
+	
+	return false
+}
+
+func getK8sServiceType(annotations map[string]string) string {
+	if annotations != nil {
+		if serviceType, exists := annotations["mcpeg.io/service-type"]; exists {
+			return serviceType
+		}
+	}
+	return "mcp_adapter"
+}
+
+func getK8sProtocol(annotations map[string]string, portName string) string {
+	if annotations != nil {
+		if protocol, exists := annotations["mcpeg.io/protocol"]; exists {
+			return protocol
+		}
+	}
+	
+	// Infer from port name
+	if strings.Contains(strings.ToLower(portName), "https") || 
+	   strings.Contains(strings.ToLower(portName), "tls") {
+		return "https"
+	}
+	
+	return "http"
+}
+
+func getK8sTags(labels map[string]string) []string {
+	var tags []string
+	
+	if labels != nil {
+		// Convert specific labels to tags
+		for key, value := range labels {
+			if strings.HasPrefix(key, "mcpeg.io/tag-") {
+				tag := strings.TrimPrefix(key, "mcpeg.io/tag-")
+				if value == "true" {
+					tags = append(tags, tag)
+				} else {
+					tags = append(tags, fmt.Sprintf("%s:%s", tag, value))
+				}
+			}
+		}
+		
+		// Add app label as tag if present
+		if app, exists := labels["app"]; exists {
+			tags = append(tags, fmt.Sprintf("app:%s", app))
+		}
+		
+		// Add version label as tag if present
+		if version, exists := labels["version"]; exists {
+			tags = append(tags, fmt.Sprintf("version:%s", version))
+		}
+	}
+	
+	return tags
 }
 
 func defaultDiscoveryConfig() DiscoveryConfig {

@@ -1,0 +1,170 @@
+server:
+  address: "0.0.0.0"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  shutdown_timeout: 30s
+  
+  tls:
+    enabled: true
+    cert_file: "/etc/ssl/certs/mcpeg.crt"
+    key_file: "/etc/ssl/private/mcpeg.key"
+    min_version: "1.2"
+    ciphers:
+      - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+      - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+      - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+  
+  cors:
+    enabled: true
+    allow_origins: ["https://app.example.com", "https://admin.example.com"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["Content-Type", "Authorization", "X-Client-ID", "X-Session-ID"]
+    allow_credentials: true
+    max_age: 86400
+  
+  middleware:
+    compression:
+      enabled: true
+      level: 6
+      types: ["application/json", "text/html", "text/css", "application/javascript"]
+    
+    rate_limit:
+      enabled: true
+      rps: 500
+      burst: 1000
+      window_size: 1m
+    
+    request_logging:
+      enabled: true
+      include_body: false
+      exclude_paths: ["/health", "/metrics"]
+      include_headers: ["User-Agent", "X-Forwarded-For", "X-Real-IP"]
+  
+  health_check:
+    enabled: true
+    endpoint: "/health"
+    detailed: false
+
+logging:
+  level: "info"
+  format: "json"
+  
+  output:
+    console:
+      enabled: true
+      colorized: false
+    file:
+      enabled: true
+      path: "/var/log/mcpeg/mcpeg.log"
+      max_size: 100  # MB
+      max_backups: 30
+      max_age: 90    # days
+      compress: true
+  
+  structured:
+    include_trace_id: true
+    include_span_id: true
+    include_caller: false
+    include_stack: false
+
+metrics:
+  enabled: true
+  address: "0.0.0.0"
+  port: 9090
+  
+  prometheus:
+    enabled: true
+    endpoint: "/metrics"
+    namespace: "mcpeg"
+    subsystem: "gateway"
+  
+  collection:
+    http: true
+    system: true
+    business: true
+    system_interval: 30s
+
+registry:
+  discovery:
+    static:
+      enabled: false
+      services: []
+    
+    consul:
+      enabled: true
+      address: "consul.internal:8500"
+      token: "${CONSUL_TOKEN}"
+      service_prefix: "mcpeg"
+      tags: ["mcp", "gateway", "production"]
+    
+    kubernetes:
+      enabled: true
+      namespace: "mcpeg"
+      label_selector: "app=mcpeg-service,tier=backend"
+    
+    file:
+      enabled: false
+      path: "/etc/mcpeg/services"
+      watch_enabled: true
+      watch_interval: 60s
+  
+  load_balancer:
+    strategy: "least_connections"
+    health_aware: true
+    
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 3
+      recovery_timeout: 60s
+      half_open_max_requests: 2
+  
+  health_checks:
+    enabled: true
+    interval: 15s
+    timeout: 3s
+    
+    http:
+      enabled: true
+      path: "/health"
+      method: "GET"
+      headers:
+        User-Agent: "MCPEG-HealthChecker/1.0"
+        Authorization: "Bearer ${HEALTH_CHECK_TOKEN}"
+      expected_status: [200]
+    
+    tcp:
+      enabled: true
+
+security:
+  api_key:
+    enabled: true
+    header: "X-API-Key"
+    keys: ["${API_KEY_1}", "${API_KEY_2}"]
+  
+  jwt:
+    enabled: true
+    secret: "${JWT_SECRET}"
+    algorithm: "HS256"
+    validate_expiry: true
+    validate_issuer: true
+    validate_audience: true
+  
+  validation:
+    enabled: true
+    strict_mode: true
+    validate_body: true
+
+development:
+  enabled: false
+  hot_reload: false
+  debug_mode: false
+  profiler_port: 0
+  
+  admin_endpoints:
+    enabled: false
+    prefix: "/admin"
+    config_reload: false
+    service_discovery: false
+    health_checks: false
