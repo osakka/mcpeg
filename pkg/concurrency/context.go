@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourusername/mcpeg/pkg/logging"
+	"github.com/osakka/mcpeg/pkg/logging"
 )
 
 // RequestContext provides comprehensive request tracking

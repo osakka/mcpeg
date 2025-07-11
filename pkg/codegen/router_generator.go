@@ -2,18 +2,17 @@ package codegen
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/format"
 	"text/template"
 	"time"
-
-	"github.com/yourusername/mcpeg/internal/mcp/types"
 )
 
 // RouterGenerator generates Go router code from MCP schema
 type RouterGenerator struct {
 	Schema    MCPSchema           `json:"schema"`
-	Config    GeneratorConfig     `json:"config"`
+	Config    RouterConfig        `json:"config"`
 	Templates map[string]*template.Template
 }
 
@@ -92,8 +91,8 @@ type PromptSchema struct {
 	Template    string                 `json:"template"`
 }
 
-// GeneratorConfig configures code generation
-type GeneratorConfig struct {
+// RouterConfig configures router generation
+type RouterConfig struct {
 	PackageName     string            `json:"package_name"`
 	OutputPath      string            `json:"output_path"`
 	IncludeMetrics  bool              `json:"include_metrics"`
@@ -125,7 +124,7 @@ type ErrorCode struct {
 }
 
 // NewRouterGenerator creates a new router generator
-func NewRouterGenerator(schema MCPSchema, config GeneratorConfig) *RouterGenerator {
+func NewRouterGenerator(schema MCPSchema, config RouterConfig) *RouterGenerator {
 	rg := &RouterGenerator{
 		Schema:    schema,
 		Config:    config,
@@ -213,10 +212,10 @@ import (
 	"time"
 	
 	"github.com/gorilla/mux"
-	"github.com/yourusername/mcpeg/internal/adapter"
-	"github.com/yourusername/mcpeg/internal/mcp/types"
-	{{if .Config.IncludeLogging}}"github.com/yourusername/mcpeg/pkg/logging"{{end}}
-	{{if .Config.IncludeMetrics}}"github.com/yourusername/mcpeg/pkg/metrics"{{end}}
+	"github.com/osakka/mcpeg/internal/adapter"
+	"github.com/osakka/mcpeg/internal/mcp/types"
+	{{if .Config.IncludeLogging}}"github.com/osakka/mcpeg/pkg/logging"{{end}}
+	{{if .Config.IncludeMetrics}}"github.com/osakka/mcpeg/pkg/metrics"{{end}}
 )
 `
 
@@ -411,7 +410,7 @@ func init() {
 	}
 	
 	// Apply function map to all templates
-	template.Must(template.New("").Funcs(funcMap))
+	template.Must(template.New("").Funcs(funcMap).Parse(""))
 }
 
 func pascalCase(s string) string {

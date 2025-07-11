@@ -62,7 +62,78 @@ This project is in active development following the XVC methodology phases:
 
 > **Note**: This software is experimental. APIs and functionality may change significantly.
 
-[To be completed after initial implementation]
+### Prerequisites
+
+- Go 1.21 or later
+- Docker (optional, for containerized deployment)
+
+### Building
+
+MCPEG uses a **single source of truth** build system. All build configuration is centralized in `scripts/build.sh`:
+
+```bash
+# Using Make (delegates to build script)
+make build
+
+# Or use the build script directly
+./scripts/build.sh build
+```
+
+Available build commands:
+
+```bash
+# Core building
+make build          # Build for current platform
+make build-dev      # Development build (faster)
+make build-prod     # Cross-compile for all platforms
+
+# Development
+make dev            # Start development server
+make test           # Run tests
+make validate       # Validate OpenAPI specs
+make fmt            # Format code
+
+# Release
+make release        # Create release archives
+make clean          # Clean build artifacts
+
+# Get help
+make help           # Show all available commands
+```
+
+### Running
+
+Start the gateway:
+
+```bash
+# Development mode
+make dev
+
+# Or run the binary directly
+./build/mcpeg gateway -dev
+```
+
+Generate code from OpenAPI specs:
+
+```bash
+make validate       # Validate OpenAPI specification
+make generate       # Generate Go code from specs
+
+# Or use the unified binary directly
+./build/mcpeg codegen -spec-file api/openapi/mcp-gateway.yaml -output internal/generated
+./build/mcpeg validate -spec-file api/openapi/mcp-gateway.yaml
+```
+
+### Build Artifacts
+
+All build artifacts are placed in the `build/` directory:
+- `build/mcpeg` - Unified MCPEG binary with gateway and codegen functionality
+- `build/release/` - Release archives for distribution
+
+The build system follows the **single source of truth** principle:
+- All build configuration is in `scripts/build.sh`
+- Makefile delegates to the build script
+- No duplication of build logic
 
 ## Contributing
 

@@ -1,0 +1,1688 @@
+openapi: 3.0.3
+info:
+  title: MCPEG - Model Context Protocol Enablement Gateway API
+  description: |
+    API-first gateway providing MCP protocol access to various backend services.
+    
+    This API follows the Model Context Protocol (MCP) specification while providing
+    enhanced features for service discovery, routing, and management.
+    
+    **Key Features:**
+    - Full MCP 2025-03-26 protocol compliance
+    - Multi-service adapter support
+    - Configuration-driven service routing
+    - Enhanced security and validation
+    - LLM-optimized error reporting
+    - Comprehensive health monitoring
+    
+    **API-First Design:**
+    All code is generated from this OpenAPI specification following the
+    single source of truth principle.
+  version: "1.0.0"
+  contact:
+    name: MCPEG API Support
+    url: https://github.com/yourusername/mcpeg
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.mcpeg.local
+    description: Production server
+  - url: https://staging-api.mcpeg.local
+    description: Staging server
+  - url: http://localhost:8080
+    description: Development server
+
+# Security schemes for the API
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+  - MCPAuth: []
+
+# Global security requirements
+securityDefinitions:
+  ApiKeyAuth:
+    type: apiKey
+    in: header
+    name: X-API-Key
+    description: API key for service authentication
+  BearerAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: JWT
+    description: JWT token for user authentication
+  MCPAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: MCP
+    description: MCP-specific authentication token
+
+# Common response headers
+x-response-headers: &common-response-headers
+  X-Request-ID:
+    description: Unique request identifier for tracing
+    schema:
+      type: string
+      format: uuid
+  X-Correlation-ID:
+    description: Correlation identifier for request tracking
+    schema:
+      type: string
+  X-Rate-Limit-Remaining:
+    description: Number of requests remaining in current window
+    schema:
+      type: integer
+  X-Response-Time:
+    description: Response processing time
+    schema:
+      type: string
+
+paths:
+  # MCP Core Protocol Endpoints
+  
+  /mcp/initialize:
+    post:
+      operationId: initializeMCPSession
+      summary: Initialize MCP session
+      description: |
+        Initialize a new MCP session with capability negotiation.
+        This is the first call that must be made to establish communication
+        with the MCP gateway.
+      tags:
+        - MCP Core
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitializeRequest'
+            examples:
+              basic:
+                summary: Basic initialization
+                value:
+                  jsonrpc: "2.0"
+                  id: 1
+                  method: "initialize"
+                  params:
+                    protocolVersion: "2025-03-26"
+                    clientInfo:
+                      name: "Claude"
+                      version: "3.5"
+                    capabilities:
+                      tools: {}
+                      resources: {}
+      responses:
+        '200':
+          description: Session initialized successfully
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitializeResponse'
+              examples:
+                success:
+                  summary: Successful initialization
+                  value:
+                    jsonrpc: "2.0"
+                    id: 1
+                    result:
+                      protocolVersion: "2025-03-26"
+                      capabilities:
+                        tools:
+                          listChanged: true
+                        resources:
+                          listChanged: true
+                          subscribe: true
+                        prompts:
+                          listChanged: true
+                      serverInfo:
+                        name: "mcpeg"
+                        version: "1.0.0"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/ping:
+    post:
+      operationId: pingMCPServer
+      summary: Ping MCP server
+      description: Health check endpoint to verify server connectivity
+      tags:
+        - MCP Core
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PingRequest'
+      responses:
+        '200':
+          description: Pong response
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PingResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Tools API
+  
+  /mcp/tools:
+    get:
+      operationId: listTools
+      summary: List available tools
+      description: |
+        Retrieve a list of all available tools across all configured services.
+        Tools are automatically discovered from service adapters.
+      tags:
+        - Tools
+      parameters:
+        - name: service
+          in: query
+          description: Filter tools by service name
+          schema:
+            type: string
+          example: "mysql"
+        - name: category
+          in: query
+          description: Filter tools by category
+          schema:
+            type: string
+          example: "database"
+        - name: cursor
+          in: query
+          description: Cursor for pagination
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of available tools
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListToolsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: listToolsPost
+      summary: List tools (POST method for MCP compliance)
+      description: MCP-compliant POST method for listing tools
+      tags:
+        - Tools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListToolsRequest'
+      responses:
+        '200':
+          description: List of available tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListToolsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/call:
+    post:
+      operationId: callTool
+      summary: Call a tool
+      description: |
+        Execute a tool with provided arguments. The tool call is routed
+        to the appropriate service adapter based on the tool name.
+      tags:
+        - Tools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CallToolRequest'
+            examples:
+              mysql_query:
+                summary: Execute MySQL query
+                value:
+                  jsonrpc: "2.0"
+                  id: 2
+                  method: "tools/call"
+                  params:
+                    name: "mysql_query"
+                    arguments:
+                      query: "SELECT * FROM users LIMIT 10"
+                      database: "production"
+              weather_query:
+                summary: Get weather data
+                value:
+                  jsonrpc: "2.0"
+                  id: 3
+                  method: "tools/call"
+                  params:
+                    name: "get_weather"
+                    arguments:
+                      location: "San Francisco, CA"
+                      units: "metric"
+      responses:
+        '200':
+          description: Tool execution result
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallToolResponse'
+              examples:
+                mysql_success:
+                  summary: Successful MySQL query
+                  value:
+                    jsonrpc: "2.0"
+                    id: 2
+                    result:
+                      content:
+                        - type: "text"
+                          text: |
+                            Query executed successfully:
+                            - 10 users returned
+                            - Execution time: 0.05s
+                      isError: false
+                weather_success:
+                  summary: Successful weather query
+                  value:
+                    jsonrpc: "2.0"
+                    id: 3
+                    result:
+                      content:
+                        - type: "text"
+                          text: |
+                            Weather in San Francisco, CA:
+                            Temperature: 18°C
+                            Conditions: Partly cloudy
+                            Humidity: 65%
+                      isError: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ToolNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Resources API
+  
+  /mcp/resources:
+    get:
+      operationId: listResources
+      summary: List available resources
+      description: |
+        Retrieve a list of all available resources across all configured services.
+        Resources represent data that can be read from various backends.
+      tags:
+        - Resources
+      parameters:
+        - name: service
+          in: query
+          description: Filter resources by service name
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Filter resources by type
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: Cursor for pagination
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of available resources
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResourcesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: listResourcesPost
+      summary: List resources (POST method for MCP compliance)
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListResourcesRequest'
+      responses:
+        '200':
+          description: List of available resources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResourcesResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/resources/read:
+    post:
+      operationId: readResource
+      summary: Read a resource
+      description: |
+        Read the content of a specific resource. The resource URI determines
+        which service adapter handles the request.
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadResourceRequest'
+            examples:
+              file_read:
+                summary: Read a file
+                value:
+                  jsonrpc: "2.0"
+                  id: 4
+                  method: "resources/read"
+                  params:
+                    uri: "file:///home/user/config.yaml"
+              database_table:
+                summary: Read database table schema
+                value:
+                  jsonrpc: "2.0"
+                  id: 5
+                  method: "resources/read"
+                  params:
+                    uri: "mysql://localhost/mydb/users"
+      responses:
+        '200':
+          description: Resource content
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadResourceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Prompts API
+  
+  /mcp/prompts:
+    get:
+      operationId: listPrompts
+      summary: List available prompts
+      description: List all available prompt templates from configured services
+      tags:
+        - Prompts
+      parameters:
+        - name: service
+          in: query
+          description: Filter prompts by service name
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: Cursor for pagination
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of available prompts
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPromptsResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: listPromptsPost
+      summary: List prompts (POST method for MCP compliance)
+      tags:
+        - Prompts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListPromptsRequest'
+      responses:
+        '200':
+          description: List of available prompts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPromptsResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/prompts/get:
+    post:
+      operationId: getPrompt
+      summary: Get a prompt template
+      description: Retrieve a specific prompt template with optional argument substitution
+      tags:
+        - Prompts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPromptRequest'
+      responses:
+        '200':
+          description: Prompt template content
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetPromptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/PromptNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Service Management API
+  
+  /api/services:
+    get:
+      operationId: listServices
+      summary: List configured services
+      description: |
+        List all configured service adapters with their status and capabilities.
+        This is a management API for service discovery and monitoring.
+      tags:
+        - Service Management
+      parameters:
+        - name: status
+          in: query
+          description: Filter services by status
+          schema:
+            type: string
+            enum: [active, inactive, error]
+        - name: type
+          in: query
+          description: Filter services by adapter type
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of configured services
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: registerService
+      summary: Register a new service
+      description: |
+        Register a new service adapter with the gateway.
+        This allows dynamic service registration at runtime.
+      tags:
+        - Service Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRegistrationRequest'
+      responses:
+        '201':
+          description: Service registered successfully
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRegistrationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/ServiceConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/services/{serviceId}:
+    get:
+      operationId: getService
+      summary: Get service details
+      description: Get detailed information about a specific service
+      tags:
+        - Service Management
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          description: Unique service identifier
+          schema:
+            type: string
+          example: "mysql-prod"
+      responses:
+        '200':
+          description: Service details
+          headers:
+            <<: *common-response-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceDetails'
+        '404':
+          $ref: '#/components/responses/ServiceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      operationId: updateService
+      summary: Update service configuration
+      description: Update the configuration of an existing service
+      tags:
+        - Service Management
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceUpdateRequest'
+      responses:
+        '200':
+          description: Service updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceDetails'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ServiceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: unregisterService
+      summary: Unregister a service
+      description: Remove a service from the gateway
+      tags:
+        - Service Management
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Service unregistered successfully
+          headers:
+            <<: *common-response-headers
+        '404':
+          $ref: '#/components/responses/ServiceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Health and Monitoring API
+  
+  /health:
+    get:
+      operationId: getHealth
+      summary: Get system health status
+      description: Get overall system health including all service adapters
+      tags:
+        - Health
+      security: []  # Health endpoint is public
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /health/ready:
+    get:
+      operationId: getReadiness
+      summary: Get readiness status
+      description: Check if the system is ready to serve traffic
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: System is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessStatus'
+        '503':
+          description: System is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessStatus'
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Get system metrics in Prometheus format
+      tags:
+        - Monitoring
+      security: []
+      responses:
+        '200':
+          description: Metrics data
+          content:
+            text/plain:
+              schema:
+                type: string
+
+# Component definitions
+components:
+  schemas:
+    # Base JSON-RPC schemas
+    
+    JSONRPCRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+          description: JSON-RPC version
+        id:
+          oneOf:
+            - type: string
+            - type: number
+            - type: "null"
+          description: Request identifier
+        method:
+          type: string
+          description: Method name to invoke
+        params:
+          type: object
+          description: Method parameters
+
+    JSONRPCResponse:
+      type: object
+      required:
+        - jsonrpc
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          oneOf:
+            - type: string
+            - type: number
+            - type: "null"
+        result:
+          type: object
+          description: Result of successful method call
+        error:
+          $ref: '#/components/schemas/JSONRPCError'
+
+    JSONRPCError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        data:
+          type: object
+          description: Additional error data
+
+    # MCP Protocol schemas
+    
+    ClientInfo:
+      type: object
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+          description: Client name
+          example: "Claude"
+        version:
+          type: string
+          description: Client version
+          example: "3.5"
+
+    ServerInfo:
+      type: object
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+          description: Server name
+          example: "mcpeg"
+        version:
+          type: string
+          description: Server version
+          example: "1.0.0"
+
+    ClientCapabilities:
+      type: object
+      properties:
+        tools:
+          type: object
+          description: Tool capabilities
+        resources:
+          type: object
+          properties:
+            subscribe:
+              type: boolean
+              description: Support for resource subscriptions
+        prompts:
+          type: object
+          description: Prompt capabilities
+        experimental:
+          type: object
+          description: Experimental capabilities
+
+    ServerCapabilities:
+      type: object
+      properties:
+        tools:
+          type: object
+          properties:
+            listChanged:
+              type: boolean
+              description: Support for tool list change notifications
+        resources:
+          type: object
+          properties:
+            listChanged:
+              type: boolean
+              description: Support for resource list change notifications
+            subscribe:
+              type: boolean
+              description: Support for resource subscriptions
+        prompts:
+          type: object
+          properties:
+            listChanged:
+              type: boolean
+              description: Support for prompt list change notifications
+        experimental:
+          type: object
+          description: Experimental capabilities
+
+    # Request/Response schemas
+    
+    InitializeRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["initialize"]
+            params:
+              type: object
+              required:
+                - protocolVersion
+                - clientInfo
+                - capabilities
+              properties:
+                protocolVersion:
+                  type: string
+                  description: MCP protocol version
+                  example: "2025-03-26"
+                clientInfo:
+                  $ref: '#/components/schemas/ClientInfo'
+                capabilities:
+                  $ref: '#/components/schemas/ClientCapabilities'
+
+    InitializeResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - protocolVersion
+                - capabilities
+                - serverInfo
+              properties:
+                protocolVersion:
+                  type: string
+                  example: "2025-03-26"
+                capabilities:
+                  $ref: '#/components/schemas/ServerCapabilities'
+                serverInfo:
+                  $ref: '#/components/schemas/ServerInfo'
+
+    PingRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["ping"]
+
+    PingResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+
+    # Tools schemas
+    
+    Tool:
+      type: object
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+          description: Tool name
+          example: "mysql_query"
+        description:
+          type: string
+          description: Tool description
+          example: "Execute SQL queries against MySQL database"
+        inputSchema:
+          type: object
+          description: JSON schema for tool input parameters
+          example:
+            type: object
+            properties:
+              query:
+                type: string
+                description: SQL query to execute
+              database:
+                type: string
+                description: Target database name
+            required: ["query"]
+
+    ListToolsRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["tools/list"]
+            params:
+              type: object
+              properties:
+                cursor:
+                  type: string
+                  description: Pagination cursor
+
+    ListToolsResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - tools
+              properties:
+                tools:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Tool'
+                nextCursor:
+                  type: string
+                  description: Cursor for next page
+
+    CallToolRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["tools/call"]
+            params:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Tool name to call
+                  example: "mysql_query"
+                arguments:
+                  type: object
+                  description: Tool arguments
+                  example:
+                    query: "SELECT * FROM users LIMIT 10"
+                    database: "production"
+
+    ToolCallContent:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: ["text", "image", "resource"]
+        text:
+          type: string
+          description: Text content
+        data:
+          type: string
+          format: base64
+          description: Binary data (base64 encoded)
+        mimeType:
+          type: string
+          description: MIME type for binary data
+
+    CallToolResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ToolCallContent'
+                isError:
+                  type: boolean
+                  description: Whether the tool execution resulted in an error
+                  default: false
+
+    # Resources schemas
+    
+    Resource:
+      type: object
+      required:
+        - uri
+        - name
+      properties:
+        uri:
+          type: string
+          format: uri
+          description: Resource URI
+          example: "file:///home/user/config.yaml"
+        name:
+          type: string
+          description: Human-readable resource name
+          example: "Configuration File"
+        description:
+          type: string
+          description: Resource description
+        mimeType:
+          type: string
+          description: Resource MIME type
+          example: "application/yaml"
+
+    ListResourcesRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["resources/list"]
+            params:
+              type: object
+              properties:
+                cursor:
+                  type: string
+
+    ListResourcesResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - resources
+              properties:
+                resources:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Resource'
+                nextCursor:
+                  type: string
+
+    ReadResourceRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["resources/read"]
+            params:
+              type: object
+              required:
+                - uri
+              properties:
+                uri:
+                  type: string
+                  format: uri
+                  description: Resource URI to read
+
+    ResourceContent:
+      type: object
+      required:
+        - uri
+        - mimeType
+      properties:
+        uri:
+          type: string
+          format: uri
+        mimeType:
+          type: string
+        text:
+          type: string
+          description: Text content
+        blob:
+          type: string
+          format: base64
+          description: Binary content (base64 encoded)
+
+    ReadResourceResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - contents
+              properties:
+                contents:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ResourceContent'
+
+    # Prompts schemas
+    
+    Prompt:
+      type: object
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+          description: Prompt name
+          example: "sql_query_helper"
+        description:
+          type: string
+          description: Prompt description
+        arguments:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+              - description
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              required:
+                type: boolean
+                default: false
+
+    ListPromptsRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["prompts/list"]
+            params:
+              type: object
+              properties:
+                cursor:
+                  type: string
+
+    ListPromptsResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - prompts
+              properties:
+                prompts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Prompt'
+                nextCursor:
+                  type: string
+
+    GetPromptRequest:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCRequest'
+        - type: object
+          properties:
+            method:
+              type: string
+              enum: ["prompts/get"]
+            params:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Prompt name
+                arguments:
+                  type: object
+                  description: Prompt arguments for substitution
+
+    PromptMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: ["system", "user", "assistant"]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                $ref: '#/components/schemas/ToolCallContent'
+
+    GetPromptResponse:
+      allOf:
+        - $ref: '#/components/schemas/JSONRPCResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              required:
+                - messages
+              properties:
+                description:
+                  type: string
+                messages:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PromptMessage'
+
+    # Service Management schemas
+    
+    ServiceAdapter:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - status
+      properties:
+        id:
+          type: string
+          description: Unique service identifier
+          example: "mysql-prod"
+        name:
+          type: string
+          description: Human-readable service name
+          example: "Production MySQL Database"
+        type:
+          type: string
+          description: Service adapter type
+          example: "mysql"
+          enum: ["mysql", "postgresql", "weather", "file", "git", "memory"]
+        status:
+          type: string
+          enum: ["active", "inactive", "error"]
+        endpoint:
+          type: string
+          description: Service endpoint URL
+        version:
+          type: string
+          description: Service version
+        capabilities:
+          type: object
+          description: Service capabilities
+        configuration:
+          type: object
+          description: Service configuration (sanitized)
+        lastHealthCheck:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          description: Additional service metadata
+
+    ServiceListResponse:
+      type: object
+      required:
+        - services
+        - total
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceAdapter'
+        total:
+          type: integer
+          description: Total number of services
+        page:
+          type: integer
+          description: Current page number
+        pageSize:
+          type: integer
+          description: Number of items per page
+
+    ServiceRegistrationRequest:
+      type: object
+      required:
+        - name
+        - type
+        - configuration
+      properties:
+        name:
+          type: string
+          description: Service name
+        type:
+          type: string
+          description: Service adapter type
+        configuration:
+          type: object
+          description: Service configuration
+        metadata:
+          type: object
+          description: Additional metadata
+
+    ServiceRegistrationResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          description: Generated service ID
+        status:
+          type: string
+          enum: ["registered", "pending", "error"]
+        message:
+          type: string
+          description: Registration status message
+
+    ServiceDetails:
+      allOf:
+        - $ref: '#/components/schemas/ServiceAdapter'
+        - type: object
+          properties:
+            tools:
+              type: array
+              items:
+                $ref: '#/components/schemas/Tool'
+            resources:
+              type: array
+              items:
+                $ref: '#/components/schemas/Resource'
+            prompts:
+              type: array
+              items:
+                $ref: '#/components/schemas/Prompt'
+            healthStatus:
+              $ref: '#/components/schemas/HealthStatus'
+
+    ServiceUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        configuration:
+          type: object
+        metadata:
+          type: object
+
+    # Health and Monitoring schemas
+    
+    HealthCheck:
+      type: object
+      required:
+        - name
+        - status
+        - timestamp
+      properties:
+        name:
+          type: string
+          description: Health check name
+        status:
+          type: string
+          enum: ["healthy", "degraded", "unhealthy", "unknown"]
+        message:
+          type: string
+          description: Status message
+        duration:
+          type: string
+          description: Check duration
+        details:
+          type: object
+          description: Additional check details
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Suggested actions for issues
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - uptime
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "degraded", "unhealthy", "unknown"]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime:
+          type: string
+          description: System uptime duration
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            healthy:
+              type: integer
+            degraded:
+              type: integer
+            unhealthy:
+              type: integer
+            critical:
+              type: integer
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    ReadinessStatus:
+      type: object
+      required:
+        - ready
+        - timestamp
+      properties:
+        ready:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+
+    # Error schemas
+    
+    Error:
+      type: object
+      required:
+        - code
+        - message
+        - timestamp
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+          description: Additional error details
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Suggested remediation actions
+        traceId:
+          type: string
+          description: Request trace identifier
+        requestId:
+          type: string
+          description: Request identifier
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/JSONRPCResponse'
+              - type: object
+                properties:
+                  error:
+                    allOf:
+                      - $ref: '#/components/schemas/JSONRPCError'
+                      - type: object
+                        properties:
+                          code:
+                            type: integer
+                            enum: [-32602]
+                          message:
+                            type: string
+                            example: "Invalid params"
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "UNAUTHORIZED"
+            message: "Authentication required"
+            timestamp: "2025-07-11T10:30:00Z"
+            suggestions:
+              - "Provide valid authentication credentials"
+              - "Check API key or token validity"
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ToolNotFound:
+      description: Tool not found
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/JSONRPCResponse'
+              - type: object
+                properties:
+                  error:
+                    allOf:
+                      - $ref: '#/components/schemas/JSONRPCError'
+                      - type: object
+                        properties:
+                          code:
+                            type: integer
+                            enum: [-32601]
+                          message:
+                            type: string
+                            example: "Tool not found"
+
+    ResourceNotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/JSONRPCResponse'
+              - type: object
+                properties:
+                  error:
+                    $ref: '#/components/schemas/JSONRPCError'
+
+    PromptNotFound:
+      description: Prompt not found
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/JSONRPCResponse'
+              - type: object
+                properties:
+                  error:
+                    $ref: '#/components/schemas/JSONRPCError'
+
+    ServiceNotFound:
+      description: Service not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServiceConflict:
+      description: Service already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/JSONRPCResponse'
+              - type: object
+                properties:
+                  error:
+                    allOf:
+                      - $ref: '#/components/schemas/JSONRPCError'
+                      - type: object
+                        properties:
+                          code:
+                            type: integer
+                            enum: [-32603]
+                          message:
+                            type: string
+                            example: "Internal error"
+
+# API documentation tags
+tags:
+  - name: MCP Core
+    description: Core MCP protocol operations
+  - name: Tools
+    description: Tool discovery and execution
+  - name: Resources
+    description: Resource listing and reading
+  - name: Prompts
+    description: Prompt template management
+  - name: Service Management
+    description: Service adapter management
+  - name: Health
+    description: Health monitoring
+  - name: Monitoring
+    description: Metrics and monitoring

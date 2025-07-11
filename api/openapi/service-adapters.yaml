@@ -1,0 +1,1410 @@
+openapi: 3.0.3
+info:
+  title: MCPEG Service Adapters API
+  description: |
+    Service adapter specifications for MCPEG backend integrations.
+    
+    This specification defines the contract for service adapters that integrate
+    various backend systems with the MCP gateway. Each adapter implements this
+    interface to provide tools, resources, and prompts to the gateway.
+    
+    **API-First Design:**
+    - All service adapters are generated from this specification
+    - Consistent interface across all backend integrations
+    - Type-safe implementations with validation
+    - Auto-generated client/server code
+    
+    **Supported Adapter Types:**
+    - Database adapters (MySQL, PostgreSQL, MongoDB)
+    - File system adapters
+    - External API adapters (Weather, etc.)
+    - Git repository adapters
+    - Memory/cache adapters
+    - Custom service adapters
+  version: "1.0.0"
+  contact:
+    name: MCPEG Service Adapters
+    url: https://github.com/yourusername/mcpeg
+
+servers:
+  - url: http://localhost:8081
+    description: Service adapter development server
+  - url: https://adapters.mcpeg.local
+    description: Service adapter production endpoint
+
+security:
+  - ServiceApiKey: []
+  - ServiceBearer: []
+
+paths:
+  # Service Adapter Lifecycle
+
+  /adapter/register:
+    post:
+      operationId: registerAdapter
+      summary: Register service adapter
+      description: |
+        Register this adapter with the MCP gateway. This endpoint is called
+        by the gateway during adapter discovery or when the adapter starts.
+      tags:
+        - Adapter Lifecycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdapterRegistration'
+      responses:
+        '200':
+          description: Adapter registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterRegistrationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/AdapterConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /adapter/health:
+    get:
+      operationId: getAdapterHealth
+      summary: Get adapter health status
+      description: Health check endpoint for the service adapter
+      tags:
+        - Adapter Lifecycle
+      security: []
+      responses:
+        '200':
+          description: Adapter is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterHealth'
+        '503':
+          description: Adapter is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterHealth'
+
+  /adapter/capabilities:
+    get:
+      operationId: getAdapterCapabilities
+      summary: Get adapter capabilities
+      description: |
+        Get the full capabilities of this adapter including tools, resources,
+        and prompts that it provides.
+      tags:
+        - Adapter Lifecycle
+      responses:
+        '200':
+          description: Adapter capabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterCapabilities'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Tools Interface
+
+  /tools:
+    get:
+      operationId: listAdapterTools
+      summary: List adapter tools
+      description: Get all tools provided by this adapter
+      tags:
+        - Tools
+      parameters:
+        - name: category
+          in: query
+          description: Filter tools by category
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: Pagination cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of adapter tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolList'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tools/{toolName}:
+    get:
+      operationId: getToolDefinition
+      summary: Get tool definition
+      description: Get detailed definition for a specific tool
+      tags:
+        - Tools
+      parameters:
+        - name: toolName
+          in: path
+          required: true
+          description: Name of the tool
+          schema:
+            type: string
+          example: "mysql_query"
+      responses:
+        '200':
+          description: Tool definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDefinition'
+        '404':
+          $ref: '#/components/responses/ToolNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tools/{toolName}/execute:
+    post:
+      operationId: executeTool
+      summary: Execute a tool
+      description: |
+        Execute a tool with the provided arguments. This is the core
+        functionality that adapters must implement.
+      tags:
+        - Tools
+      parameters:
+        - name: toolName
+          in: path
+          required: true
+          description: Name of the tool to execute
+          schema:
+            type: string
+          example: "mysql_query"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolExecutionRequest'
+            examples:
+              mysql_query:
+                summary: MySQL query execution
+                value:
+                  arguments:
+                    query: "SELECT * FROM users WHERE active = 1 LIMIT 10"
+                    database: "production"
+                  context:
+                    requestId: "req_123"
+                    userId: "user_456"
+              weather_query:
+                summary: Weather API query
+                value:
+                  arguments:
+                    location: "San Francisco, CA"
+                    units: "metric"
+                  context:
+                    requestId: "req_124"
+      responses:
+        '200':
+          description: Tool execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolExecutionResponse'
+              examples:
+                mysql_success:
+                  summary: Successful MySQL query
+                  value:
+                    success: true
+                    result:
+                      content:
+                        - type: "text"
+                          text: |
+                            Query executed successfully:
+                            Found 8 active users:
+                            - user1 (john@example.com)
+                            - user2 (jane@example.com)
+                            - user3 (bob@example.com)
+                            - user4 (alice@example.com)
+                            - user5 (charlie@example.com)
+                            - user6 (diana@example.com)
+                            - user7 (eve@example.com)
+                            - user8 (frank@example.com)
+                    metadata:
+                      executionTime: "0.042s"
+                      rowsReturned: 8
+                      queryHash: "abc123"
+                weather_success:
+                  summary: Successful weather query
+                  value:
+                    success: true
+                    result:
+                      content:
+                        - type: "text"
+                          text: |
+                            Current weather in San Francisco, CA:
+                            Temperature: 18°C (64°F)
+                            Conditions: Partly cloudy
+                            Humidity: 65%
+                            Wind: 12 km/h WSW
+                            Visibility: 16 km
+                    metadata:
+                      source: "OpenWeatherMap"
+                      timestamp: "2025-07-11T10:30:00Z"
+                mysql_error:
+                  summary: MySQL query error
+                  value:
+                    success: false
+                    error:
+                      code: "SQL_SYNTAX_ERROR"
+                      message: "You have an error in your SQL syntax"
+                      details:
+                        sqlState: "42000"
+                        errorCode: 1064
+                        position: 23
+                      suggestions:
+                        - "Check SQL syntax near 'WHERE' clause"
+                        - "Verify column names exist in the table"
+                        - "Use proper SQL syntax for your database version"
+        '400':
+          description: Invalid tool arguments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolExecutionError'
+        '404':
+          $ref: '#/components/responses/ToolNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Resources Interface
+
+  /resources:
+    get:
+      operationId: listAdapterResources
+      summary: List adapter resources
+      description: Get all resources provided by this adapter
+      tags:
+        - Resources
+      parameters:
+        - name: type
+          in: query
+          description: Filter resources by type
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: Pagination cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of adapter resources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceList'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /resources/read:
+    post:
+      operationId: readResource
+      summary: Read a resource
+      description: |
+        Read the content of a specific resource. The resource is identified
+        by its URI and the adapter determines how to fetch the content.
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceReadRequest'
+            examples:
+              file_read:
+                summary: Read a configuration file
+                value:
+                  uri: "file:///etc/app/config.yaml"
+                  context:
+                    requestId: "req_125"
+              database_schema:
+                summary: Read database table schema
+                value:
+                  uri: "mysql://localhost/mydb/users?schema=true"
+                  context:
+                    requestId: "req_126"
+      responses:
+        '200':
+          description: Resource content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceReadResponse'
+              examples:
+                file_content:
+                  summary: Configuration file content
+                  value:
+                    success: true
+                    content:
+                      uri: "file:///etc/app/config.yaml"
+                      mimeType: "application/yaml"
+                      text: |
+                        database:
+                          host: localhost
+                          port: 3306
+                          name: myapp
+                        cache:
+                          redis_url: redis://localhost:6379
+                    metadata:
+                      size: 156
+                      lastModified: "2025-07-11T09:15:00Z"
+                      permissions: "rw-r--r--"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Prompts Interface
+
+  /prompts:
+    get:
+      operationId: listAdapterPrompts
+      summary: List adapter prompts
+      description: Get all prompt templates provided by this adapter
+      tags:
+        - Prompts
+      parameters:
+        - name: category
+          in: query
+          description: Filter prompts by category
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: Pagination cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of adapter prompts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptList'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /prompts/{promptName}:
+    get:
+      operationId: getPromptTemplate
+      summary: Get prompt template
+      description: |
+        Get a specific prompt template with optional argument substitution.
+        The adapter processes the template and returns the final prompt.
+      tags:
+        - Prompts
+      parameters:
+        - name: promptName
+          in: path
+          required: true
+          description: Name of the prompt template
+          schema:
+            type: string
+          example: "sql_query_helper"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+            examples:
+              sql_helper:
+                summary: SQL query helper prompt
+                value:
+                  arguments:
+                    table_name: "users"
+                    operation: "select"
+                    conditions: "active = 1"
+      responses:
+        '200':
+          description: Prompt template content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptResponse'
+              examples:
+                sql_helper:
+                  summary: SQL helper prompt response
+                  value:
+                    success: true
+                    prompt:
+                      description: "Help with SQL query construction"
+                      messages:
+                        - role: "system"
+                          content: |
+                            You are a SQL query assistant. Help the user construct safe and efficient SQL queries.
+                            
+                            Current context:
+                            - Table: users
+                            - Operation: select
+                            - Conditions: active = 1
+                            
+                            Guidelines:
+                            1. Always use parameterized queries
+                            2. Validate input parameters
+                            3. Consider performance implications
+                            4. Follow database best practices
+                        - role: "user"
+                          content: "Please help me write a SQL query for the users table where active = 1"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/PromptNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Configuration Interface
+
+  /config:
+    get:
+      operationId: getAdapterConfig
+      summary: Get adapter configuration
+      description: Get the current configuration of the adapter (sanitized)
+      tags:
+        - Configuration
+      responses:
+        '200':
+          description: Adapter configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterConfig'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      operationId: updateAdapterConfig
+      summary: Update adapter configuration
+      description: |
+        Update the adapter configuration. This allows dynamic reconfiguration
+        without restarting the adapter.
+      tags:
+        - Configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdapterConfigUpdate'
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /config/validate:
+    post:
+      operationId: validateAdapterConfig
+      summary: Validate adapter configuration
+      description: Validate a configuration before applying it
+      tags:
+        - Configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdapterConfigUpdate'
+      responses:
+        '200':
+          description: Configuration is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigValidationResult'
+        '400':
+          description: Configuration is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigValidationResult'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    ServiceApiKey:
+      type: apiKey
+      in: header
+      name: X-Service-API-Key
+      description: Service-specific API key
+    ServiceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service authentication token
+
+  schemas:
+    # Adapter Lifecycle Schemas
+
+    AdapterRegistration:
+      type: object
+      required:
+        - name
+        - type
+        - version
+        - capabilities
+      properties:
+        name:
+          type: string
+          description: Human-readable adapter name
+          example: "Production MySQL Database"
+        type:
+          type: string
+          description: Adapter type identifier
+          example: "mysql"
+          enum: ["mysql", "postgresql", "mongodb", "file", "weather", "git", "memory", "custom"]
+        version:
+          type: string
+          description: Adapter version
+          example: "1.2.3"
+        description:
+          type: string
+          description: Adapter description
+        endpoint:
+          type: string
+          format: uri
+          description: Adapter endpoint URL
+          example: "http://mysql-adapter:8081"
+        capabilities:
+          $ref: '#/components/schemas/AdapterCapabilities'
+        configuration:
+          type: object
+          description: Adapter-specific configuration (sanitized)
+        metadata:
+          type: object
+          description: Additional metadata
+          properties:
+            tags:
+              type: array
+              items:
+                type: string
+            environment:
+              type: string
+              enum: ["development", "staging", "production"]
+            region:
+              type: string
+            maintainer:
+              type: string
+
+    AdapterRegistrationResponse:
+      type: object
+      required:
+        - id
+        - status
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Assigned adapter ID
+          example: "mysql-prod-001"
+        status:
+          type: string
+          enum: ["registered", "pending", "rejected"]
+        message:
+          type: string
+          description: Registration status message
+        timestamp:
+          type: string
+          format: date-time
+        gatewayInfo:
+          type: object
+          properties:
+            version:
+              type: string
+            supportedProtocols:
+              type: array
+              items:
+                type: string
+
+    AdapterHealth:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "degraded", "unhealthy"]
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          type: string
+          description: Health status message
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+        metadata:
+          type: object
+          properties:
+            uptime:
+              type: string
+              description: Adapter uptime
+            version:
+              type: string
+            memoryUsage:
+              type: object
+            connectionPool:
+              type: object
+
+    HealthCheck:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          description: Check name
+        status:
+          type: string
+          enum: ["pass", "warn", "fail"]
+        message:
+          type: string
+        duration:
+          type: string
+          description: Check execution time
+        details:
+          type: object
+
+    AdapterCapabilities:
+      type: object
+      properties:
+        tools:
+          type: object
+          properties:
+            count:
+              type: integer
+              description: Number of tools provided
+            categories:
+              type: array
+              items:
+                type: string
+              description: Tool categories
+            supportsAsync:
+              type: boolean
+              description: Support for asynchronous execution
+            maxConcurrency:
+              type: integer
+              description: Maximum concurrent executions
+        resources:
+          type: object
+          properties:
+            count:
+              type: integer
+            types:
+              type: array
+              items:
+                type: string
+            supportsSubscription:
+              type: boolean
+            supportsStreaming:
+              type: boolean
+        prompts:
+          type: object
+          properties:
+            count:
+              type: integer
+            categories:
+              type: array
+              items:
+                type: string
+            supportsTemplating:
+              type: boolean
+        features:
+          type: array
+          items:
+            type: string
+          description: Additional features supported
+        limitations:
+          type: object
+          description: Known limitations
+        authentication:
+          type: object
+          properties:
+            required:
+              type: boolean
+            methods:
+              type: array
+              items:
+                type: string
+
+    # Tools Schemas
+
+    ToolDefinition:
+      type: object
+      required:
+        - name
+        - description
+        - inputSchema
+      properties:
+        name:
+          type: string
+          description: Tool name
+          example: "mysql_query"
+        description:
+          type: string
+          description: Tool description
+          example: "Execute SQL queries against MySQL database"
+        category:
+          type: string
+          description: Tool category
+          example: "database"
+        inputSchema:
+          type: object
+          description: JSON schema for tool input
+          example:
+            type: object
+            properties:
+              query:
+                type: string
+                description: SQL query to execute
+              database:
+                type: string
+                description: Target database name
+                default: "main"
+              timeout:
+                type: integer
+                description: Query timeout in seconds
+                minimum: 1
+                maximum: 300
+                default: 30
+            required: ["query"]
+        outputSchema:
+          type: object
+          description: JSON schema for tool output
+        examples:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              input:
+                type: object
+              output:
+                type: object
+        metadata:
+          type: object
+          properties:
+            version:
+              type: string
+            lastModified:
+              type: string
+              format: date-time
+            tags:
+              type: array
+              items:
+                type: string
+            deprecated:
+              type: boolean
+            replacedBy:
+              type: string
+
+    ToolList:
+      type: object
+      required:
+        - tools
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolDefinition'
+        nextCursor:
+          type: string
+          description: Cursor for next page
+        totalCount:
+          type: integer
+          description: Total number of tools
+
+    ToolExecutionRequest:
+      type: object
+      required:
+        - arguments
+      properties:
+        arguments:
+          type: object
+          description: Tool-specific arguments
+        context:
+          type: object
+          description: Execution context
+          properties:
+            requestId:
+              type: string
+            correlationId:
+              type: string
+            userId:
+              type: string
+            timeout:
+              type: integer
+              description: Execution timeout in seconds
+            metadata:
+              type: object
+
+    ToolExecutionResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Whether execution was successful
+        result:
+          $ref: '#/components/schemas/ToolResult'
+        error:
+          $ref: '#/components/schemas/ToolError'
+        metadata:
+          type: object
+          description: Execution metadata
+          properties:
+            executionTime:
+              type: string
+              description: Execution duration
+            resourceUsage:
+              type: object
+            cacheHit:
+              type: boolean
+            version:
+              type: string
+
+    ToolResult:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        metadata:
+          type: object
+
+    ToolError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Suggested remediation actions
+        retryable:
+          type: boolean
+          description: Whether the operation can be retried
+
+    ToolExecutionError:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          $ref: '#/components/schemas/ToolError'
+
+    ContentBlock:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: ["text", "image", "binary", "structured"]
+        text:
+          type: string
+          description: Text content
+        data:
+          type: string
+          format: base64
+          description: Binary data (base64 encoded)
+        mimeType:
+          type: string
+          description: MIME type
+        metadata:
+          type: object
+          description: Content metadata
+
+    # Resources Schemas
+
+    ResourceDefinition:
+      type: object
+      required:
+        - uri
+        - name
+      properties:
+        uri:
+          type: string
+          format: uri
+          description: Resource URI
+          example: "file:///etc/app/config.yaml"
+        name:
+          type: string
+          description: Human-readable name
+          example: "Application Configuration"
+        description:
+          type: string
+          description: Resource description
+        type:
+          type: string
+          description: Resource type
+          example: "configuration"
+        mimeType:
+          type: string
+          description: Expected MIME type
+          example: "application/yaml"
+        size:
+          type: integer
+          description: Resource size in bytes
+        lastModified:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+
+    ResourceList:
+      type: object
+      required:
+        - resources
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceDefinition'
+        nextCursor:
+          type: string
+        totalCount:
+          type: integer
+
+    ResourceReadRequest:
+      type: object
+      required:
+        - uri
+      properties:
+        uri:
+          type: string
+          format: uri
+          description: Resource URI to read
+        options:
+          type: object
+          description: Read options
+          properties:
+            encoding:
+              type: string
+              enum: ["utf-8", "base64", "binary"]
+              default: "utf-8"
+            maxSize:
+              type: integer
+              description: Maximum size to read in bytes
+            offset:
+              type: integer
+              description: Byte offset to start reading
+            length:
+              type: integer
+              description: Number of bytes to read
+        context:
+          type: object
+
+    ResourceReadResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        content:
+          $ref: '#/components/schemas/ResourceContent'
+        error:
+          $ref: '#/components/schemas/ResourceError'
+        metadata:
+          type: object
+
+    ResourceContent:
+      type: object
+      required:
+        - uri
+        - mimeType
+      properties:
+        uri:
+          type: string
+          format: uri
+        mimeType:
+          type: string
+        text:
+          type: string
+          description: Text content
+        data:
+          type: string
+          format: base64
+          description: Binary content
+        size:
+          type: integer
+        lastModified:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+
+    ResourceError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    # Prompts Schemas
+
+    PromptDefinition:
+      type: object
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+          description: Prompt name
+          example: "sql_query_helper"
+        description:
+          type: string
+          description: Prompt description
+        category:
+          type: string
+          description: Prompt category
+        arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptArgument'
+        template:
+          type: string
+          description: Prompt template
+        examples:
+          type: array
+          items:
+            type: object
+        metadata:
+          type: object
+
+    PromptArgument:
+      type: object
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: ["string", "number", "boolean", "array", "object"]
+          default: "string"
+        required:
+          type: boolean
+          default: false
+        default:
+          description: Default value
+        validation:
+          type: object
+          description: Validation rules
+
+    PromptList:
+      type: object
+      required:
+        - prompts
+      properties:
+        prompts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptDefinition'
+        nextCursor:
+          type: string
+        totalCount:
+          type: integer
+
+    PromptRequest:
+      type: object
+      properties:
+        arguments:
+          type: object
+          description: Prompt arguments for substitution
+        options:
+          type: object
+          description: Rendering options
+        context:
+          type: object
+
+    PromptResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        prompt:
+          $ref: '#/components/schemas/RenderedPrompt'
+        error:
+          $ref: '#/components/schemas/PromptError'
+
+    RenderedPrompt:
+      type: object
+      required:
+        - messages
+      properties:
+        description:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptMessage'
+        metadata:
+          type: object
+
+    PromptMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: ["system", "user", "assistant"]
+        content:
+          type: string
+        metadata:
+          type: object
+
+    PromptError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    # Configuration Schemas
+
+    AdapterConfig:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        version:
+          type: string
+        settings:
+          type: object
+          description: Adapter-specific settings (sanitized)
+        features:
+          type: object
+          description: Feature flags and toggles
+        limits:
+          type: object
+          description: Rate limits and constraints
+        metadata:
+          type: object
+
+    AdapterConfigUpdate:
+      type: object
+      properties:
+        settings:
+          type: object
+        features:
+          type: object
+        limits:
+          type: object
+        metadata:
+          type: object
+
+    ConfigValidationResult:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+              code:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    # Error Schemas
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+        - timestamp
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+        suggestions:
+          type: array
+          items:
+            type: string
+        traceId:
+          type: string
+        requestId:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ToolNotFound:
+      description: Tool not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ResourceNotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    PromptNotFound:
+      description: Prompt not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    AdapterConflict:
+      description: Adapter already registered
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Adapter Lifecycle
+    description: Adapter registration and lifecycle management
+  - name: Tools
+    description: Tool discovery and execution interface
+  - name: Resources
+    description: Resource access interface
+  - name: Prompts
+    description: Prompt template interface
+  - name: Configuration
+    description: Adapter configuration management

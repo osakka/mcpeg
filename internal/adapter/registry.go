@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/yourusername/mcpeg/pkg/logging"
+	"github.com/osakka/mcpeg/pkg/logging"
 )
 
 // Factory creates a new instance of a service adapter

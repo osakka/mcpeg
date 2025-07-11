@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/yourusername/mcpeg/pkg/logging"
+	"github.com/osakka/mcpeg/pkg/logging"
 )
 
 var (

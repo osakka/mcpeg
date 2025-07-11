@@ -1,12 +1,11 @@
 package metrics
 
 import (
-	"context"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/yourusername/mcpeg/pkg/logging"
+	"github.com/osakka/mcpeg/pkg/logging"
 )
 
 // Metrics is the core metrics interface
@@ -89,8 +88,6 @@ func (cm *ComponentMetrics) StartOperation(operation string) func(error) {
 	// Track memory at start
 	var startMem runtime.MemStats
 	runtime.ReadMemStats(&startMem)
-	
-	startTime := time.Now()
 	
 	return func(err error) {
 		// Stop timing
