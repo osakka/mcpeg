@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="55" fill="#2563eb" stroke="#1e40af" stroke-width="2"/>
+  
+  <!-- Main peg shape - hexagon representing the "peg" -->
+  <polygon points="60,25 75,35 75,55 60,65 45,55 45,35" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+  
+  <!-- Connection lines representing gateway/bridging -->
+  <line x1="25" y1="45" x2="45" y2="45" stroke="#60a5fa" stroke-width="3" stroke-linecap="round"/>
+  <line x1="75" y1="45" x2="95" y2="45" stroke="#60a5fa" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Additional connection points -->
+  <circle cx="25" cy="45" r="4" fill="#60a5fa"/>
+  <circle cx="95" cy="45" r="4" fill="#60a5fa"/>
+  
+  <!-- Bottom text area -->
+  <text x="60" y="85" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#ffffff">MC PEG</text>
+  <text x="60" y="100" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="8" fill="#bfdbfe">GATEWAY</text>
+</svg>

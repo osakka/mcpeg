@@ -1751,6 +1751,12 @@ func (gs *GatewayServer) handleGoroutineStats(w http.ResponseWriter, r *http.Req
 
 func (gs *GatewayServer) handleAPIDocumentation(w http.ResponseWriter, r *http.Request) {
 	docs := map[string]interface{}{
+		"service": map[string]interface{}{
+			"name": "MC PEG",
+			"description": "Model Context Protocol Enablement Gateway",
+			"version": gs.version,
+			"pronunciation": "MC PEG (em-see peg)",
+		},
 		"admin_api": map[string]interface{}{
 			"base_path": "/admin",
 			"endpoints": map[string]interface{}{

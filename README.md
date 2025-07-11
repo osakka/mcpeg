@@ -1,12 +1,19 @@
-# MCPEG - Model Context Protocol Enablement Gateway
+# MC PEG
+## Model Context Protocol Enablement Gateway
+
+<div align="center">
+  <img src="assets/logo.svg" alt="MC PEG Logo" width="200"/>
+  
+  **Pronounced "MC PEG" • The Peg That Connects Model Contexts**
+</div>
 
 > ⚠️ **EXPERIMENTAL SOFTWARE**: This project is under heavy development and follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) framework for human-LLM collaborative development.
 
-MCPEG is a lightweight service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side.
+**MC PEG** is a high-performance gateway service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side. Like a peg that connects different pieces, MC PEG bridges the gap between MCP-compliant clients and diverse backend services.
 
 ## Overview
 
-MCPEG acts as a bridge between MCP-compliant clients and various backend services, providing:
+**MC PEG** acts as a bridge between MCP-compliant clients and various backend services, providing:
 - **Full MCP Protocol Compliance** - Complete Model Context Protocol 2025-03-26 specification support
 - **Production-Ready Gateway** - High-performance request routing with intelligent load balancing
 - **Advanced Service Discovery** - DNS, Consul, Kubernetes, and static configuration support
@@ -26,6 +33,7 @@ See [Project Structure Guide](docs/architecture/project-structure.md) for detail
 - `/pkg` - Public Go packages
 - `/src` - Generated API schemas only
 - `/build` - Build artifacts
+- `/assets` - Logo and branding assets
 - `/docs` - All documentation
   - `/adrs` - Architecture Decision Records
   - `/architecture` - System design documents
@@ -65,6 +73,8 @@ Major implementation milestone achieved:
 - ✅ **Bar-Raising Quality** - Thread-safe operations, proper error handling, resource cleanup
 - 📋 All decisions documented in ADRs following XVC methodology
 - 🔍 100% LLM-debuggable through comprehensive logging
+
+**MC PEG** is now a complete, production-ready gateway that truly lives up to its name - the peg that seamlessly connects model contexts!
 
 ## Key Features
 
@@ -162,7 +172,7 @@ make generate       # Generate Go code from specs
 ### Build Artifacts
 
 All build artifacts are placed in the `build/` directory:
-- `build/mcpeg` - Unified MCPEG binary with gateway and codegen functionality
+- `build/mcpeg` - Unified **MC PEG** binary with gateway and codegen functionality
 - `build/release/` - Release archives for distribution
 
 The build system follows the **single source of truth** principle:

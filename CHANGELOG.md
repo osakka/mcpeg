@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - System monitoring (runtime info, memory profiling, goroutine debugging)
   - Self-documenting API with built-in documentation endpoint
 
+#### Branding and Identity
+- **Official Logo**: Clean SVG logo representing the "peg" concept with connection visualization
+- **Brand Consistency**: Clarified pronunciation as "MC PEG" throughout documentation
+- **Visual Identity**: Logo incorporates hexagonal peg shape with connection lines showing gateway functionality
+
 ### Changed
 - Migrated from separate `gateway` and `codegen` binaries to unified `mcpeg` binary
 - Updated build system to use single source of truth pattern
