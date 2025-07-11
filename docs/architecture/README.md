@@ -4,6 +4,13 @@
 
 MCPEG implements a gateway pattern to bridge MCP clients with various backend services.
 
+## Contents
+
+- [Project Structure](project-structure.md) - Go project layout and directory organization
+- [High-Level Design](high-level-design.md) - System architecture and design patterns
+- Component diagrams (coming soon)
+- Deployment architecture (coming soon)
+
 ## Architecture Diagram
 
 ```

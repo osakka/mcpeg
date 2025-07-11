@@ -15,7 +15,7 @@ MCPEG acts as a bridge between MCP-compliant clients and various backend service
 
 ## Project Structure
 
-See [Project Structure Guide](docs/development/project-structure.md) for detailed layout.
+See [Project Structure Guide](docs/architecture/project-structure.md) for detailed layout.
 
 - `/cmd` - Application entry points
 - `/internal` - Private application code  
@@ -30,7 +30,7 @@ See [Project Structure Guide](docs/development/project-structure.md) for detaile
 
 ## Development Methodology: XVC Framework
 
-This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) principles for human-LLM collaboration. See our [XVC Methodology Guide](docs/development/xvc-methodology.md) for details.
+This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) principles for human-LLM collaboration. See our [XVC Methodology Guide](docs/guidelines/xvc-methodology.md) for details.
 
 ### Core XVC Principles Applied:
 

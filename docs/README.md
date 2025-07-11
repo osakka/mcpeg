@@ -24,10 +24,6 @@ This directory contains all project documentation.
   - Component interaction diagrams
   - Deployment architecture
 
-- `/development/` - Development guides
-  - XVC methodology documentation
-  - Project structure explanation
-  - Getting started guides
 
 ## Documentation Principles
 
