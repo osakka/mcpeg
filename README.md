@@ -1,5 +1,7 @@
 # MCPEG - Model Context Protocol Enablement Gateway
 
+> ⚠️ **EXPERIMENTAL SOFTWARE**: This project is under heavy development and follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) framework for human-LLM collaborative development.
+
 MCPEG is a lightweight service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side.
 
 ## Overview
@@ -19,17 +21,50 @@ MCPEG acts as a bridge between MCP-compliant clients and various backend service
 - `/CHANGELOG.md` - Version history and changes
 - `/CLAUDE.md` - AI assistant context and instructions
 
-## Development Principles
+## Development Methodology: XVC Framework
+
+This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) principles for human-LLM collaboration:
+
+### Core XVC Principles Applied:
 
 1. **Single Source of Truth**: All API definitions derive from official MCP specifications
-2. **No Redundancy**: Each piece of information exists in exactly one place
-3. **API-First**: Define APIs before implementation
-4. **Code Generation**: Generate code from schemas to ensure consistency
-5. **Up-to-date**: Automated processes to keep documentation and code synchronized
+2. **No Redundancy**: Each piece of information exists in exactly one place  
+3. **Surgical Precision**: Every change is intentional and well-documented
+4. **Bar-Raising Solutions**: Only implement patterns that improve the overall system
+5. **Forward Progress Only**: No regression, always building on solid foundations
+6. **Always Solve Never Mask**: Address root causes, not symptoms
+
+### Additional Development Principles:
+
+- **API-First**: Define APIs before implementation
+- **Code Generation**: Generate code from schemas to ensure consistency
+- **LLM-Optimized Logging**: Every log entry contains complete context for troubleshooting
+- **100% Observability**: An LLM can understand system state from logs alone
+
+## Project Status
+
+🚧 **Current Phase**: Foundation Building (Phase 1)
+
+This project is in active development following the XVC methodology phases:
+- ✅ Initial pattern establishment with LLM collaboration
+- 🔄 Building core infrastructure with bar-raising patterns
+- 📋 All decisions documented in ADRs
+- 🔍 100% LLM-debuggable through comprehensive logging
 
 ## Getting Started
 
+> **Note**: This software is experimental. APIs and functionality may change significantly.
+
 [To be completed after initial implementation]
+
+## Contributing
+
+This project uses XVC methodology. When contributing:
+1. Ensure changes align with XVC principles
+2. Maintain single source of truth
+3. Document decisions in ADRs
+4. Write LLM-optimized logs
+5. Never mask problems - solve root causes
 
 ## License
 
