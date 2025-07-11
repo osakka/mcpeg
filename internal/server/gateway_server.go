@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/osakka/mcpeg/internal/registry"
 	"github.com/osakka/mcpeg/internal/router"
+	"github.com/osakka/mcpeg/internal/plugins"
 	"github.com/osakka/mcpeg/pkg/logging"
 	"github.com/osakka/mcpeg/pkg/metrics"
 	"github.com/osakka/mcpeg/pkg/validation"
@@ -34,6 +35,9 @@ type GatewayServer struct {
 	metrics      metrics.Metrics
 	validator    *validation.Validator
 	healthMgr    *health.HealthManager
+	
+	// Plugin system integration
+	pluginIntegration *plugins.MCpegPluginIntegration
 	
 	// Build and runtime information
 	version   string
@@ -103,18 +107,22 @@ func NewGatewayServerWithVersion(
 	// Create MCP router
 	mcpRouter := router.NewMCPRouter(serviceRegistry, logger, metrics, validator)
 	
+	// Initialize plugin system
+	pluginIntegration := plugins.NewMCpegPluginIntegration(serviceRegistry, logger, metrics)
+	
 	server := &GatewayServer{
-		config:    config,
-		registry:  serviceRegistry,
-		mcpRouter: mcpRouter,
-		logger:    logger.WithComponent("gateway_server"),
-		metrics:   metrics,
-		validator: validator,
-		healthMgr: healthMgr,
-		version:   version,
-		commit:    commit,
-		buildTime: buildTime,
-		startTime: time.Now(),
+		config:            config,
+		registry:          serviceRegistry,
+		mcpRouter:         mcpRouter,
+		pluginIntegration: pluginIntegration,
+		logger:            logger.WithComponent("gateway_server"),
+		metrics:           metrics,
+		validator:         validator,
+		healthMgr:         healthMgr,
+		version:           version,
+		commit:            commit,
+		buildTime:         buildTime,
+		startTime:         time.Now(),
 	}
 	
 	// Setup HTTP server
@@ -220,6 +228,18 @@ func (gs *GatewayServer) setupAdminRoutes(router *mux.Router) {
 	router.HandleFunc("/config", gs.handleUpdateConfig).Methods("PUT")
 	router.HandleFunc("/config/reload", gs.handleConfigReload).Methods("POST")
 	
+	// Plugin management
+	router.HandleFunc("/plugins", gs.handleListPlugins).Methods("GET")
+	router.HandleFunc("/plugins/{name}", gs.handleGetPlugin).Methods("GET")
+	router.HandleFunc("/plugins/{name}/config", gs.handleGetPluginConfig).Methods("GET")
+	router.HandleFunc("/plugins/{name}/config", gs.handleUpdatePluginConfig).Methods("PUT")
+	router.HandleFunc("/plugins/{name}/tools", gs.handleGetPluginTools).Methods("GET")
+	router.HandleFunc("/plugins/{name}/resources", gs.handleGetPluginResources).Methods("GET")
+	router.HandleFunc("/plugins/{name}/health", gs.handleGetPluginHealth).Methods("GET")
+	router.HandleFunc("/plugins/health", gs.handleGetAllPluginHealth).Methods("GET")
+	router.HandleFunc("/plugins/metrics", gs.handleGetPluginMetrics).Methods("GET")
+	router.HandleFunc("/plugins/capabilities", gs.handleGetPluginCapabilities).Methods("GET")
+	
 	// System information
 	router.HandleFunc("/info", gs.handleSystemInfo).Methods("GET")
 	router.HandleFunc("/stats", gs.handleSystemStats).Methods("GET")
@@ -234,6 +254,12 @@ func (gs *GatewayServer) Start(ctx context.Context) error {
 	gs.logger.Info("gateway_server_starting",
 		"address", gs.httpServer.Addr,
 		"tls_enabled", gs.config.TLSEnabled)
+	
+	// Initialize plugins
+	if err := gs.pluginIntegration.InitializePlugins(ctx); err != nil {
+		gs.logger.Error("failed_to_initialize_plugins", "error", err)
+		return fmt.Errorf("failed to initialize plugins: %w", err)
+	}
 	
 	// Start HTTP server in a goroutine
 	errChan := make(chan error, 1)
@@ -271,6 +297,12 @@ func (gs *GatewayServer) Stop() error {
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), gs.config.ShutdownTimeout)
 	defer cancel()
+	
+	// Shutdown plugins first
+	if err := gs.pluginIntegration.ShutdownPlugins(ctx); err != nil {
+		gs.logger.Error("plugin_shutdown_error", "error", err)
+		// Don't return error, continue with shutdown
+	}
 	
 	// Shutdown HTTP server
 	if err := gs.httpServer.Shutdown(ctx); err != nil {
@@ -417,7 +449,7 @@ func (gs *GatewayServer) writeHTTPMetrics(w io.Writer) error {
 	for _, status := range statusCodes {
 		metricName := fmt.Sprintf("http_requests_total_status_%s", status)
 		if stat, exists := stats[metricName]; exists {
-			fmt.Fprintf(w, "mcpeg_http_requests_total{status=\"%s\"} %f\n", status, stat.Value)
+			fmt.Fprintf(w, "mcpeg_http_requests_total{status=\"%s\"} %f\n", status, stat.LastValue)
 		}
 	}
 
@@ -453,7 +485,7 @@ func (gs *GatewayServer) writeHTTPMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_http_connections_active gauge\n")
 	
 	if stat, exists := stats["http_connections_active"]; exists {
-		fmt.Fprintf(w, "mcpeg_http_connections_active %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_http_connections_active %f\n", stat.LastValue)
 	}
 
 	return nil
@@ -511,14 +543,14 @@ func (gs *GatewayServer) writeServiceMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_service_health_check_success_total counter\n")
 	
 	if stat, exists := stats["service_health_check_success_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_service_health_check_success_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_service_health_check_success_total %f\n", stat.LastValue)
 	}
 
 	fmt.Fprintf(w, "# HELP mcpeg_service_health_check_failure_total Failed health checks\n")
 	fmt.Fprintf(w, "# TYPE mcpeg_service_health_check_failure_total counter\n")
 	
 	if stat, exists := stats["service_health_check_failure_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_service_health_check_failure_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_service_health_check_failure_total %f\n", stat.LastValue)
 	}
 
 	return nil
@@ -541,7 +573,7 @@ func (gs *GatewayServer) writeMCPRouterMetrics(w io.Writer) error {
 	for _, method := range mcpMethods {
 		metricName := fmt.Sprintf("mcp_requests_total_method_%s", strings.ReplaceAll(method, "/", "_"))
 		if stat, exists := stats[metricName]; exists {
-			fmt.Fprintf(w, "mcpeg_mcp_requests_total{method=\"%s\"} %f\n", method, stat.Value)
+			fmt.Fprintf(w, "mcpeg_mcp_requests_total{method=\"%s\"} %f\n", method, stat.LastValue)
 		}
 	}
 
@@ -559,7 +591,7 @@ func (gs *GatewayServer) writeMCPRouterMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_mcp_validation_errors_total counter\n")
 	
 	if stat, exists := stats["mcp_validation_errors_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_mcp_validation_errors_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_mcp_validation_errors_total %f\n", stat.LastValue)
 	}
 
 	// MCP routing errors
@@ -567,7 +599,7 @@ func (gs *GatewayServer) writeMCPRouterMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_mcp_routing_errors_total counter\n")
 	
 	if stat, exists := stats["mcp_routing_errors_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_mcp_routing_errors_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_mcp_routing_errors_total %f\n", stat.LastValue)
 	}
 
 	return nil
@@ -581,8 +613,8 @@ func (gs *GatewayServer) writeHealthMetrics(w io.Writer) error {
 	
 	isHealthy := 1
 	if gs.healthMgr != nil {
-		healthStatus := gs.healthMgr.GetOverallHealth()
-		if healthStatus != "healthy" {
+		healthStatus := gs.healthMgr.GetQuickHealth()
+		if healthStatus.Status != "healthy" {
 			isHealthy = 0
 		}
 	}
@@ -593,13 +625,13 @@ func (gs *GatewayServer) writeHealthMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_component_healthy gauge\n")
 
 	if gs.healthMgr != nil {
-		healthStatus := gs.healthMgr.GetDetailedHealth()
-		for component, status := range healthStatus {
+		healthStatus := gs.healthMgr.GetHealth(context.Background())
+		for _, check := range healthStatus.Checks {
 			healthy := 1
-			if status != "healthy" {
+			if check.Status != "healthy" {
 				healthy = 0
 			}
-			fmt.Fprintf(w, "mcpeg_component_healthy{component=\"%s\"} %d\n", component, healthy)
+			fmt.Fprintf(w, "mcpeg_component_healthy{component=\"%s\"} %d\n", check.Name, healthy)
 		}
 	}
 
@@ -658,7 +690,7 @@ func (gs *GatewayServer) writeBusinessMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_load_balancer_requests_total counter\n")
 	
 	if stat, exists := stats["load_balancer_requests_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_load_balancer_requests_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_load_balancer_requests_total %f\n", stat.LastValue)
 	}
 
 	// Circuit breaker metrics
@@ -666,7 +698,7 @@ func (gs *GatewayServer) writeBusinessMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_circuit_breaker_state gauge\n")
 	
 	if stat, exists := stats["circuit_breaker_state"]; exists {
-		fmt.Fprintf(w, "mcpeg_circuit_breaker_state %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_circuit_breaker_state %f\n", stat.LastValue)
 	}
 
 	// Rate limiting metrics
@@ -674,7 +706,7 @@ func (gs *GatewayServer) writeBusinessMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_rate_limit_blocked_total counter\n")
 	
 	if stat, exists := stats["rate_limit_blocked_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_rate_limit_blocked_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_rate_limit_blocked_total %f\n", stat.LastValue)
 	}
 
 	// Configuration reload metrics
@@ -682,7 +714,7 @@ func (gs *GatewayServer) writeBusinessMetrics(w io.Writer) error {
 	fmt.Fprintf(w, "# TYPE mcpeg_config_reloads_total counter\n")
 	
 	if stat, exists := stats["config_reloads_total"]; exists {
-		fmt.Fprintf(w, "mcpeg_config_reloads_total %f\n", stat.Value)
+		fmt.Fprintf(w, "mcpeg_config_reloads_total %f\n", stat.LastValue)
 	}
 
 	return nil
@@ -1785,6 +1817,18 @@ func (gs *GatewayServer) handleAPIDocumentation(w http.ResponseWriter, r *http.R
 					"PUT /config": "Update configuration",
 					"POST /config/reload": "Reload configuration from file",
 				},
+				"plugins": map[string]interface{}{
+					"GET /plugins": "List all plugins",
+					"GET /plugins/{name}": "Get plugin information",
+					"GET /plugins/{name}/config": "Get plugin configuration",
+					"PUT /plugins/{name}/config": "Update plugin configuration",
+					"GET /plugins/{name}/tools": "Get plugin tools",
+					"GET /plugins/{name}/resources": "Get plugin resources",
+					"GET /plugins/{name}/health": "Get plugin health status",
+					"GET /plugins/health": "Get all plugin health status",
+					"GET /plugins/metrics": "Get plugin metrics",
+					"GET /plugins/capabilities": "Get plugin capabilities summary",
+				},
 				"system": map[string]interface{}{
 					"GET /info": "Get system information",
 					"GET /stats": "Get system statistics",
@@ -1815,4 +1859,215 @@ func (gs *GatewayServer) handleAPIDocumentation(w http.ResponseWriter, r *http.R
 	}
 	
 	gs.writeJSONResponse(w, docs)
+}
+
+// Plugin management endpoint handlers
+
+func (gs *GatewayServer) handleListPlugins(w http.ResponseWriter, r *http.Request) {
+	gs.logger.Debug("admin_list_plugins_request", "remote_addr", r.RemoteAddr)
+	
+	allPluginInfo := gs.pluginIntegration.GetAllPluginInfo()
+	
+	gs.metrics.Inc("admin_api_plugin_list_requests_total")
+	gs.writeJSONResponse(w, allPluginInfo)
+}
+
+func (gs *GatewayServer) handleGetPlugin(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	pluginName := vars["name"]
+	
+	gs.logger.Debug("admin_get_plugin_request", 
+		"plugin_name", pluginName,
+		"remote_addr", r.RemoteAddr)
+	
+	pluginInfo, err := gs.pluginIntegration.GetPluginInfo(pluginName)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "plugin_not_found",
+			"message": fmt.Sprintf("Plugin not found: %s", pluginName),
+		})
+		return
+	}
+	
+	gs.metrics.Inc("admin_api_plugin_get_requests_total", "plugin", pluginName)
+	gs.writeJSONResponse(w, pluginInfo)
+}
+
+func (gs *GatewayServer) handleGetPluginConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	pluginName := vars["name"]
+	
+	gs.logger.Debug("admin_get_plugin_config_request", 
+		"plugin_name", pluginName,
+		"remote_addr", r.RemoteAddr)
+	
+	config, err := gs.pluginIntegration.GetPluginConfiguration(pluginName)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "plugin_not_found",
+			"message": fmt.Sprintf("Plugin not found: %s", pluginName),
+		})
+		return
+	}
+	
+	gs.metrics.Inc("admin_api_plugin_config_get_requests_total", "plugin", pluginName)
+	gs.writeJSONResponse(w, config)
+}
+
+func (gs *GatewayServer) handleUpdatePluginConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	pluginName := vars["name"]
+	
+	gs.logger.Info("admin_update_plugin_config_request", 
+		"plugin_name", pluginName,
+		"remote_addr", r.RemoteAddr)
+	
+	var configUpdate map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&configUpdate); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "invalid_request_body",
+			"message": "Failed to parse JSON request body",
+		})
+		return
+	}
+	
+	ctx := r.Context()
+	err := gs.pluginIntegration.UpdatePluginConfiguration(ctx, pluginName, configUpdate)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "config_update_failed",
+			"message": err.Error(),
+		})
+		return
+	}
+	
+	gs.metrics.Inc("admin_api_plugin_config_update_requests_total", "plugin", pluginName)
+	gs.writeJSONResponse(w, map[string]interface{}{
+		"status": "success",
+		"message": "Plugin configuration updated successfully",
+	})
+}
+
+func (gs *GatewayServer) handleGetPluginTools(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	pluginName := vars["name"]
+	
+	gs.logger.Debug("admin_get_plugin_tools_request", 
+		"plugin_name", pluginName,
+		"remote_addr", r.RemoteAddr)
+	
+	pluginInfo, err := gs.pluginIntegration.GetPluginInfo(pluginName)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "plugin_not_found",
+			"message": fmt.Sprintf("Plugin not found: %s", pluginName),
+		})
+		return
+	}
+	
+	response := map[string]interface{}{
+		"plugin": pluginName,
+		"tools": pluginInfo["tools"],
+	}
+	
+	gs.metrics.Inc("admin_api_plugin_tools_requests_total", "plugin", pluginName)
+	gs.writeJSONResponse(w, response)
+}
+
+func (gs *GatewayServer) handleGetPluginResources(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	pluginName := vars["name"]
+	
+	gs.logger.Debug("admin_get_plugin_resources_request", 
+		"plugin_name", pluginName,
+		"remote_addr", r.RemoteAddr)
+	
+	pluginInfo, err := gs.pluginIntegration.GetPluginInfo(pluginName)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "plugin_not_found",
+			"message": fmt.Sprintf("Plugin not found: %s", pluginName),
+		})
+		return
+	}
+	
+	response := map[string]interface{}{
+		"plugin": pluginName,
+		"resources": pluginInfo["resources"],
+	}
+	
+	gs.metrics.Inc("admin_api_plugin_resources_requests_total", "plugin", pluginName)
+	gs.writeJSONResponse(w, response)
+}
+
+func (gs *GatewayServer) handleGetPluginHealth(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	pluginName := vars["name"]
+	
+	gs.logger.Debug("admin_get_plugin_health_request", 
+		"plugin_name", pluginName,
+		"remote_addr", r.RemoteAddr)
+	
+	allHealth := gs.pluginIntegration.HealthCheckPlugins(r.Context())
+	
+	pluginHealthMap, ok := allHealth["plugins"].(map[string]interface{})
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "health_check_failed",
+			"message": "Failed to get plugin health information",
+		})
+		return
+	}
+	
+	pluginHealth, exists := pluginHealthMap[pluginName]
+	if !exists {
+		w.WriteHeader(http.StatusNotFound)
+		gs.writeJSONResponse(w, map[string]interface{}{
+			"error": "plugin_not_found",
+			"message": fmt.Sprintf("Plugin not found: %s", pluginName),
+		})
+		return
+	}
+	
+	response := map[string]interface{}{
+		"plugin": pluginName,
+		"health": pluginHealth,
+	}
+	
+	gs.metrics.Inc("admin_api_plugin_health_requests_total", "plugin", pluginName)
+	gs.writeJSONResponse(w, response)
+}
+
+func (gs *GatewayServer) handleGetAllPluginHealth(w http.ResponseWriter, r *http.Request) {
+	gs.logger.Debug("admin_get_all_plugin_health_request", "remote_addr", r.RemoteAddr)
+	
+	healthStatus := gs.pluginIntegration.HealthCheckPlugins(r.Context())
+	
+	gs.metrics.Inc("admin_api_plugin_health_all_requests_total")
+	gs.writeJSONResponse(w, healthStatus)
+}
+
+func (gs *GatewayServer) handleGetPluginMetrics(w http.ResponseWriter, r *http.Request) {
+	gs.logger.Debug("admin_get_plugin_metrics_request", "remote_addr", r.RemoteAddr)
+	
+	pluginMetrics := gs.pluginIntegration.GetPluginMetrics()
+	
+	gs.metrics.Inc("admin_api_plugin_metrics_requests_total")
+	gs.writeJSONResponse(w, pluginMetrics)
+}
+
+func (gs *GatewayServer) handleGetPluginCapabilities(w http.ResponseWriter, r *http.Request) {
+	gs.logger.Debug("admin_get_plugin_capabilities_request", "remote_addr", r.RemoteAddr)
+	
+	capabilities := gs.pluginIntegration.ListPluginCapabilities()
+	
+	gs.metrics.Inc("admin_api_plugin_capabilities_requests_total")
+	gs.writeJSONResponse(w, capabilities)
 }

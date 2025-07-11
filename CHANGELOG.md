@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenAPI-based code generation for Go types and handlers
 - Unified `mcpeg` binary with subcommands (gateway, codegen, validate, version, help)
 - Single source of truth build system with centralized `scripts/build.sh`
+- **Plugin System Architecture**: Complete plugin framework with Memory, Git, and Editor services
+- **Daemon Process Management**: Full daemon support with PID files, signal handling, and process control
+- **Production Logging**: File logging with rotation, compression, and structured output
+- **System Integration**: Systemd service files, management scripts, and installation automation
+- **Process Control**: Built-in daemon commands (--daemon, --stop, --restart, --status, --log-rotate)
 - Professional CLI interface following modern best practices
 - Cross-platform build support for Linux, macOS, and Windows
 - Comprehensive health checking and metrics collection

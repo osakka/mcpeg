@@ -289,3 +289,73 @@ type RequestContext struct {
 	ClientIP  string            `json:"client_ip,omitempty"`
 	Headers   map[string]string `json:"headers,omitempty"`
 }
+
+// MCP Result Types
+
+// ListResourcesResult represents the result of listing resources
+type ListResourcesResult struct {
+	Resources  []Resource `json:"resources"`
+	NextCursor string     `json:"nextCursor,omitempty"`
+}
+
+// ReadResourceResult represents the result of reading a resource
+type ReadResourceResult struct {
+	Contents []ResourceContent `json:"contents"`
+}
+
+// ListToolsResult represents the result of listing tools
+type ListToolsResult struct {
+	Tools      []Tool `json:"tools"`
+	NextCursor string `json:"nextCursor,omitempty"`
+}
+
+// CallToolResult represents the result of calling a tool
+type CallToolResult struct {
+	Content []ToolContent `json:"content"`
+	IsError bool          `json:"isError,omitempty"`
+}
+
+// ListPromptsResult represents the result of listing prompts
+type ListPromptsResult struct {
+	Prompts []Prompt `json:"prompts"`
+}
+
+// GetPromptResult represents the result of getting a prompt
+type GetPromptResult struct {
+	Description string        `json:"description,omitempty"`
+	Messages    []PromptMessage `json:"messages"`
+}
+
+// CompleteResult represents the result of completion
+type CompleteResult struct {
+	Completion CompletionResult `json:"completion"`
+}
+
+// SubscribeResult represents the result of subscribing to updates
+type SubscribeResult struct{}
+
+// UnsubscribeResult represents the result of unsubscribing from updates
+type UnsubscribeResult struct{}
+
+// LoggingLevelResult represents the result of setting logging level
+type LoggingLevelResult struct{}
+
+// CompletionResult represents completion response
+type CompletionResult struct {
+	Model  string      `json:"model"`
+	Stop   string      `json:"stop,omitempty"`
+	Values interface{} `json:"values,omitempty"`
+}
+
+// Content represents generic content
+type Content struct {
+	Type string      `json:"type"`
+	Text string      `json:"text,omitempty"`
+	Data interface{} `json:"data,omitempty"`
+}
+
+// Implementation represents service implementation info
+type Implementation struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}

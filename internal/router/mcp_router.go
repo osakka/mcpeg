@@ -489,22 +489,18 @@ func (mr *MCPRouter) validateInitializeResult(result *types.InitializeResult) er
 	}
 
 	// Validate capabilities structure
-	if result.Capabilities != nil {
-		if err := mr.validateCapabilities(result.Capabilities); err != nil {
-			return fmt.Errorf("invalid capabilities: %w", err)
-		}
+	if err := mr.validateCapabilities(&result.Capabilities); err != nil {
+		return fmt.Errorf("invalid capabilities: %w", err)
 	}
 
 	// Validate server info if present
-	if result.ServerInfo != nil {
-		if err := mr.validateServerInfo(result.ServerInfo); err != nil {
-			return fmt.Errorf("invalid server info: %w", err)
-		}
+	if err := mr.validateServerInfo(&result.ServerInfo); err != nil {
+		return fmt.Errorf("invalid server info: %w", err)
 	}
 
 	mr.logger.Debug("mcp_initialize_result_validated",
 		"protocol_version", result.ProtocolVersion,
-		"server_name", getServerName(result.ServerInfo))
+		"server_name", getServerName(&result.ServerInfo))
 
 	return nil
 }
@@ -527,13 +523,13 @@ func (mr *MCPRouter) validateListResourcesResult(result *types.ListResourcesResu
 	}
 
 	// Validate pagination if present
-	if result.NextCursor != nil && *result.NextCursor == "" {
-		return fmt.Errorf("next_cursor cannot be empty string, use nil for no more pages")
+	if result.NextCursor == "" {
+		// Empty string is valid - means no more pages
 	}
 
 	mr.logger.Debug("mcp_list_resources_result_validated",
 		"resource_count", len(result.Resources),
-		"has_next_cursor", result.NextCursor != nil)
+		"has_next_cursor", result.NextCursor != "")
 
 	return nil
 }
@@ -579,13 +575,13 @@ func (mr *MCPRouter) validateListToolsResult(result *types.ListToolsResult) erro
 	}
 
 	// Validate pagination
-	if result.NextCursor != nil && *result.NextCursor == "" {
-		return fmt.Errorf("next_cursor cannot be empty string")
+	if result.NextCursor == "" {
+		// Empty string is valid - means no more pages
 	}
 
 	mr.logger.Debug("mcp_list_tools_result_validated",
 		"tool_count", len(result.Tools),
-		"has_next_cursor", result.NextCursor != nil)
+		"has_next_cursor", result.NextCursor != "")
 
 	return nil
 }
@@ -602,7 +598,13 @@ func (mr *MCPRouter) validateCallToolResult(result *types.CallToolResult) error 
 
 	// Validate each content item
 	for i, content := range result.Content {
-		if err := mr.validateToolContent(&content, fmt.Sprintf("content[%d]", i)); err != nil {
+		// Convert ToolContent to Content for validation
+		genericContent := &types.Content{
+			Type: content.Type,
+			Text: content.Text,
+			Data: content.Data,
+		}
+		if err := mr.validateToolContent(genericContent, fmt.Sprintf("content[%d]", i)); err != nil {
 			return err
 		}
 	}
@@ -614,7 +616,7 @@ func (mr *MCPRouter) validateCallToolResult(result *types.CallToolResult) error 
 
 	mr.logger.Debug("mcp_call_tool_result_validated",
 		"content_count", len(result.Content),
-		"is_error", result.IsError != nil && *result.IsError)
+		"is_error", result.IsError)
 
 	return nil
 }
@@ -675,25 +677,14 @@ func (mr *MCPRouter) validateCompleteResult(result *types.CompleteResult) error 
 		return fmt.Errorf("complete result cannot be nil")
 	}
 
-	if result.Completion == nil {
-		return fmt.Errorf("completion object cannot be nil")
-	}
-
 	// Validate completion values
 	if result.Completion.Values == nil {
-		return fmt.Errorf("completion values array cannot be nil")
-	}
-
-	// Validate each completion value
-	for i, value := range result.Completion.Values {
-		if value == "" {
-			return fmt.Errorf("completion value[%d] cannot be empty", i)
-		}
+		return fmt.Errorf("completion values cannot be nil")
 	}
 
 	mr.logger.Debug("mcp_complete_result_validated",
-		"completion_count", len(result.Completion.Values),
-		"has_total", result.Completion.Total != nil)
+		"has_completion", true,
+		"model", result.Completion.Model)
 
 	return nil
 }
@@ -702,13 +693,13 @@ func (mr *MCPRouter) validateCompleteResult(result *types.CompleteResult) error 
 
 func (mr *MCPRouter) validateCapabilities(capabilities *types.ServerCapabilities) error {
 	// Validate logging capability
-	if capabilities.Logging != nil && len(capabilities.Logging.Keys()) == 0 {
-		return fmt.Errorf("logging capabilities cannot be empty object")
+	if capabilities.Logging != nil && capabilities.Logging.Level == "" {
+		return fmt.Errorf("logging level cannot be empty if logging capability is specified")
 	}
 
 	// Validate prompts capability
 	if capabilities.Prompts != nil {
-		if capabilities.Prompts.ListChanged != nil && *capabilities.Prompts.ListChanged {
+		if capabilities.Prompts.ListChanged {
 			// If list_changed is true, validate it's properly supported
 			mr.logger.Debug("prompts_list_changed_capability_enabled")
 		}
@@ -716,17 +707,17 @@ func (mr *MCPRouter) validateCapabilities(capabilities *types.ServerCapabilities
 
 	// Validate resources capability
 	if capabilities.Resources != nil {
-		if capabilities.Resources.Subscribe != nil && *capabilities.Resources.Subscribe {
+		if capabilities.Resources.Subscribe {
 			mr.logger.Debug("resource_subscription_capability_enabled")
 		}
-		if capabilities.Resources.ListChanged != nil && *capabilities.Resources.ListChanged {
+		if capabilities.Resources.ListChanged {
 			mr.logger.Debug("resource_list_changed_capability_enabled")
 		}
 	}
 
 	// Validate tools capability
 	if capabilities.Tools != nil {
-		if capabilities.Tools.ListChanged != nil && *capabilities.Tools.ListChanged {
+		if capabilities.Tools.ListChanged {
 			mr.logger.Debug("tools_list_changed_capability_enabled")
 		}
 	}
@@ -734,7 +725,7 @@ func (mr *MCPRouter) validateCapabilities(capabilities *types.ServerCapabilities
 	return nil
 }
 
-func (mr *MCPRouter) validateServerInfo(serverInfo *types.Implementation) error {
+func (mr *MCPRouter) validateServerInfo(serverInfo *types.ServerInfo) error {
 	if serverInfo.Name == "" {
 		return fmt.Errorf("server name cannot be empty")
 	}
@@ -772,8 +763,8 @@ func (mr *MCPRouter) validateResourceContent(content *types.ResourceContent, con
 	}
 
 	// Validate that content has either text or blob data
-	hasText := content.Text != nil && *content.Text != ""
-	hasBlob := content.Blob != nil && len(*content.Blob) > 0
+	hasText := content.Text != ""
+	hasBlob := content.Blob != ""
 	
 	if !hasText && !hasBlob {
 		return fmt.Errorf("%s: content must have either text or blob data", context)
@@ -824,22 +815,16 @@ func (mr *MCPRouter) validateToolContent(content *types.Content, context string)
 	// Type-specific validation
 	switch content.Type {
 	case "text":
-		if content.Text == nil || *content.Text == "" {
+		if content.Text == "" {
 			return fmt.Errorf("%s: text content cannot be empty", context)
 		}
 	case "image":
-		if content.Data == nil || *content.Data == "" {
+		if content.Data == nil {
 			return fmt.Errorf("%s: image content data cannot be empty", context)
 		}
-		if content.MimeType == nil || *content.MimeType == "" {
-			return fmt.Errorf("%s: image content must have mime_type", context)
-		}
 	case "resource":
-		if content.Resource == nil {
-			return fmt.Errorf("%s: resource content must have resource object", context)
-		}
-		if content.Resource.URI == "" {
-			return fmt.Errorf("%s: resource URI cannot be empty", context)
+		if content.Data == nil {
+			return fmt.Errorf("%s: resource content must have data", context)
 		}
 	}
 
@@ -874,28 +859,13 @@ func (mr *MCPRouter) validatePromptMessage(message *types.PromptMessage, context
 		return fmt.Errorf("%s: invalid message role: %s, must be one of %v", context, message.Role, validRoles)
 	}
 
-	if message.Content == nil {
-		return fmt.Errorf("%s: message content cannot be nil", context)
+	// Validate content fields
+	if message.Content.Type == "" {
+		return fmt.Errorf("%s: message content type cannot be empty", context)
 	}
-
-	// Validate content based on type
-	switch content := message.Content.(type) {
-	case string:
-		if content == "" {
-			return fmt.Errorf("%s: string content cannot be empty", context)
-		}
-	case []interface{}:
-		if len(content) == 0 {
-			return fmt.Errorf("%s: content array cannot be empty", context)
-		}
-		// Validate each content item
-		for i, item := range content {
-			if err := mr.validatePromptContentItem(item, fmt.Sprintf("%s.content[%d]", context, i)); err != nil {
-				return err
-			}
-		}
-	default:
-		return fmt.Errorf("%s: invalid content type: %T", context, content)
+	
+	if message.Content.Text == "" {
+		return fmt.Errorf("%s: message content text cannot be empty", context)
 	}
 
 	return nil
@@ -1031,7 +1001,7 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-func getServerName(serverInfo *types.Implementation) string {
+func getServerName(serverInfo *types.ServerInfo) string {
 	if serverInfo != nil {
 		return serverInfo.Name
 	}

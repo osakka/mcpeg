@@ -426,3 +426,239 @@ func (t *timer) Stop() time.Duration {
 	}
 	return t.end.Sub(t.start)
 }
+
+// ProductionMetrics implements the Metrics interface with real metric collection
+type ProductionMetrics struct {
+	stats   map[string]*MetricStats
+	mutex   sync.RWMutex
+	logger  logging.Logger
+	prefix  string
+	labels  map[string]string
+}
+
+// NewProductionMetrics creates a new production metrics instance
+func NewProductionMetrics(logger logging.Logger) *ProductionMetrics {
+	return &ProductionMetrics{
+		stats:  make(map[string]*MetricStats),
+		logger: logger.WithComponent("metrics"),
+		labels: make(map[string]string),
+	}
+}
+
+func (m *ProductionMetrics) Inc(name string, labels ...string) {
+	m.Add(name, 1, labels...)
+}
+
+func (m *ProductionMetrics) Add(name string, value float64, labels ...string) {
+	key := m.buildKey(name, labels)
+	
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	
+	stats, exists := m.stats[key]
+	if !exists {
+		stats = &MetricStats{
+			Min:         value,
+			Max:         value,
+			LastUpdated: time.Now(),
+		}
+		m.stats[key] = stats
+	}
+	
+	stats.Count++
+	stats.Sum += value
+	stats.LastValue = value
+	stats.LastUpdated = time.Now()
+	
+	// Update min/max
+	if value < stats.Min || stats.Count == 1 {
+		stats.Min = value
+	}
+	if value > stats.Max || stats.Count == 1 {
+		stats.Max = value
+	}
+	
+	// Calculate average
+	if stats.Count > 0 {
+		stats.Average = stats.Sum / float64(stats.Count)
+	}
+	
+	// Update trend (simplified)
+	if stats.Count > 1 {
+		if value > stats.Average {
+			stats.Trend = "increasing"
+		} else if value < stats.Average {
+			stats.Trend = "decreasing"
+		} else {
+			stats.Trend = "stable"
+		}
+	}
+	
+	m.logger.Trace("metric_updated", "name", name, "value", value, "labels", labels)
+}
+
+func (m *ProductionMetrics) Set(name string, value float64, labels ...string) {
+	key := m.buildKey(name, labels)
+	
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	
+	stats, exists := m.stats[key]
+	if !exists {
+		stats = &MetricStats{
+			Count:       1,
+			Min:         value,
+			Max:         value,
+			LastUpdated: time.Now(),
+		}
+		m.stats[key] = stats
+	}
+	
+	stats.LastValue = value
+	stats.LastUpdated = time.Now()
+	
+	// For gauges, we track the trend differently
+	if stats.Count > 0 {
+		oldValue := stats.Average
+		if value > oldValue {
+			stats.Trend = "increasing"
+		} else if value < oldValue {
+			stats.Trend = "decreasing"
+		} else {
+			stats.Trend = "stable"
+		}
+	}
+	
+	// Update min/max
+	if value < stats.Min || stats.Count == 1 {
+		stats.Min = value
+	}
+	if value > stats.Max || stats.Count == 1 {
+		stats.Max = value
+	}
+	
+	// For gauges, average is the last value
+	stats.Average = value
+	
+	m.logger.Trace("gauge_updated", "name", name, "value", value, "labels", labels)
+}
+
+func (m *ProductionMetrics) Observe(name string, value float64, labels ...string) {
+	// For histograms, we use Add to track observations
+	m.Add(name, value, labels...)
+}
+
+func (m *ProductionMetrics) Time(name string, labels ...string) Timer {
+	return &productionTimer{
+		start:   time.Now(),
+		name:    name,
+		labels:  labels,
+		metrics: m,
+	}
+}
+
+func (m *ProductionMetrics) WithLabels(labels map[string]string) Metrics {
+	newMetrics := &ProductionMetrics{
+		stats:  m.stats, // Share the same stats map
+		mutex:  m.mutex,
+		logger: m.logger,
+		prefix: m.prefix,
+		labels: make(map[string]string),
+	}
+	
+	// Copy existing labels
+	for k, v := range m.labels {
+		newMetrics.labels[k] = v
+	}
+	
+	// Add new labels
+	for k, v := range labels {
+		newMetrics.labels[k] = v
+	}
+	
+	return newMetrics
+}
+
+func (m *ProductionMetrics) WithPrefix(prefix string) Metrics {
+	newMetrics := &ProductionMetrics{
+		stats:  m.stats, // Share the same stats map
+		mutex:  m.mutex,
+		logger: m.logger,
+		prefix: m.buildPrefix(prefix),
+		labels: make(map[string]string),
+	}
+	
+	// Copy labels
+	for k, v := range m.labels {
+		newMetrics.labels[k] = v
+	}
+	
+	return newMetrics
+}
+
+func (m *ProductionMetrics) GetStats(name string) MetricStats {
+	key := m.buildKey(name, nil)
+	
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	
+	if stats, exists := m.stats[key]; exists {
+		return *stats
+	}
+	
+	return MetricStats{}
+}
+
+func (m *ProductionMetrics) GetAllStats() map[string]MetricStats {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	
+	result := make(map[string]MetricStats)
+	for key, stats := range m.stats {
+		result[key] = *stats
+	}
+	
+	return result
+}
+
+func (m *ProductionMetrics) buildKey(name string, labels []string) string {
+	key := m.prefix + name
+	
+	// Add instance labels
+	for k, v := range m.labels {
+		key += ":" + k + "=" + v
+	}
+	
+	// Add method labels
+	for i := 0; i < len(labels); i += 2 {
+		if i+1 < len(labels) {
+			key += ":" + labels[i] + "=" + labels[i+1]
+		}
+	}
+	
+	return key
+}
+
+func (m *ProductionMetrics) buildPrefix(prefix string) string {
+	if m.prefix != "" {
+		return m.prefix + "_" + prefix
+	}
+	return prefix
+}
+
+type productionTimer struct {
+	start   time.Time
+	name    string
+	labels  []string
+	metrics *ProductionMetrics
+}
+
+func (t *productionTimer) Duration() time.Duration {
+	return time.Since(t.start)
+}
+
+func (t *productionTimer) Stop() time.Duration {
+	duration := time.Since(t.start)
+	t.metrics.Observe(t.name, float64(duration.Milliseconds()), t.labels...)
+	return duration
+}

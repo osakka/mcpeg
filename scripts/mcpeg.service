@@ -1,0 +1,42 @@
+[Unit]
+Description=MCpeg Gateway - Model Context Protocol Enablement Gateway
+Documentation=https://github.com/osakka/mcpeg
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=mcpeg
+Group=mcpeg
+WorkingDirectory=/opt/mcpeg
+
+# Main service configuration
+ExecStart=/opt/mcpeg/build/mcpeg --daemon --config /etc/mcpeg/gateway.yaml --pid-file /var/run/mcpeg/mcpeg.pid --log-file /var/log/mcpeg/mcpeg.log
+ExecStop=/opt/mcpeg/build/mcpeg --stop --pid-file /var/run/mcpeg/mcpeg.pid
+ExecReload=/opt/mcpeg/build/mcpeg --log-rotate --pid-file /var/run/mcpeg/mcpeg.pid
+
+# Process management
+PIDFile=/var/run/mcpeg/mcpeg.pid
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStartSec=30
+TimeoutStopSec=30
+Restart=always
+RestartSec=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/mcpeg /var/run/mcpeg /opt/mcpeg/data
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=32768
+
+# Environment
+Environment=MCPEG_ENV=production
+Environment=MCPEG_LOG_LEVEL=info
+
+[Install]
+WantedBy=multi-user.target

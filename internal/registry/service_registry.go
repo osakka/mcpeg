@@ -34,6 +34,9 @@ type ServiceRegistry struct {
 	discovery   *ServiceDiscovery
 	loadBalancer *LoadBalancer
 	
+	// Circuit breaker configuration
+	maxFailures int
+	
 	// Background monitoring
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -78,6 +81,9 @@ type RegisteredService struct {
 	mutex        sync.RWMutex
 	client       *http.Client
 	lastHealth   time.Time
+	
+	// Circuit breaker state
+	FailureCount int `json:"failure_count"`
 }
 
 // ServiceStatus represents the operational status of a service
@@ -90,6 +96,7 @@ const (
 	StatusError       ServiceStatus = "error"
 	StatusDraining    ServiceStatus = "draining"
 	StatusMaintenance ServiceStatus = "maintenance"
+	StatusUnavailable ServiceStatus = "unavailable"
 )
 
 // HealthStatus represents the health status of a service
@@ -291,6 +298,7 @@ func NewServiceRegistry(logger logging.Logger, metrics metrics.Metrics, validato
 		validator:    validator,
 		health:       healthManager,
 		config:       defaultRegistryConfig(),
+		maxFailures:  5, // Default max failures before marking service unavailable
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -739,27 +747,27 @@ func (sr *ServiceRegistry) buildHealthCheckURL(service *RegisteredService) strin
 // addHealthCheckAuth adds authentication headers if configured
 func (sr *ServiceRegistry) addHealthCheckAuth(req *http.Request, service *RegisteredService) error {
 	// API Key authentication
-	if apiKey := service.Metadata["health_api_key"]; apiKey != "" {
+	if apiKey, ok := service.Metadata["health_api_key"].(string); ok && apiKey != "" {
 		req.Header.Set("X-API-Key", apiKey)
 		return nil
 	}
 
 	// Bearer token authentication
-	if token := service.Metadata["health_token"]; token != "" {
+	if token, ok := service.Metadata["health_token"].(string); ok && token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 		return nil
 	}
 
 	// Basic authentication
-	if username := service.Metadata["health_username"]; username != "" {
-		password := service.Metadata["health_password"]
+	if username, ok := service.Metadata["health_username"].(string); ok && username != "" {
+		password, _ := service.Metadata["health_password"].(string)
 		req.SetBasicAuth(username, password)
 		return nil
 	}
 
 	// Custom header authentication
-	if headerName := service.Metadata["health_header_name"]; headerName != "" {
-		headerValue := service.Metadata["health_header_value"]
+	if headerName, ok := service.Metadata["health_header_name"].(string); ok && headerName != "" {
+		headerValue, _ := service.Metadata["health_header_value"].(string)
 		if headerValue == "" {
 			return fmt.Errorf("health check header value not specified")
 		}
@@ -795,7 +803,7 @@ func (sr *ServiceRegistry) validateHealthCheckResponse(resp *http.Response, serv
 // getExpectedHealthStatus returns expected status codes for health checks
 func (sr *ServiceRegistry) getExpectedHealthStatus(service *RegisteredService) []int {
 	// Check if custom status codes are configured
-	if statusStr := service.Metadata["health_expected_status"]; statusStr != "" {
+	if statusStr, ok := service.Metadata["health_expected_status"].(string); ok && statusStr != "" {
 		return sr.parseStatusCodes(statusStr)
 	}
 
@@ -839,8 +847,7 @@ func (sr *ServiceRegistry) validateHealthResponseContent(body []byte, service *R
 	}
 
 	// Check for expected response content
-	expectedContent := service.Metadata["health_expected_content"]
-	if expectedContent != "" {
+	if expectedContent, ok := service.Metadata["health_expected_content"].(string); ok && expectedContent != "" {
 		bodyStr := string(body)
 		if !strings.Contains(bodyStr, expectedContent) {
 			return fmt.Errorf("response body does not contain expected content: %s", expectedContent)
@@ -869,7 +876,7 @@ func (sr *ServiceRegistry) validateJSONHealthResponse(body []byte, service *Regi
 
 	// Check status field in JSON response
 	if status, ok := healthResp["status"].(string); ok {
-		expectedJSONStatus := service.Metadata["health_expected_json_status"]
+		expectedJSONStatus, _ := service.Metadata["health_expected_json_status"].(string)
 		if expectedJSONStatus == "" {
 			expectedJSONStatus = "ok,healthy,up" // common status values
 		}

@@ -23,6 +23,9 @@
 - **YAML-Based Configuration** - Advanced configuration system with environment variable overrides
 - **API-First Development** - Generated code from official MCP specifications
 - **Production Observability** - Prometheus metrics, structured logging, health checks, and debugging endpoints
+- **Plugin System** - Built-in Memory, Git, and Editor services with extensible plugin architecture
+- **Daemon Process Management** - Full daemon support with PID files, signal handling, and process control
+- **System Integration** - Systemd service files, management scripts, and automated installation
 
 ## Project Structure
 
@@ -70,6 +73,8 @@ Major implementation milestone achieved:
 - ✅ **Comprehensive Admin API** - 22 RESTful endpoints for complete gateway management
 - ✅ **Production Observability** - Prometheus metrics, structured logging, health monitoring
 - ✅ **Full MCP Compliance** - Complete Model Context Protocol 2025-03-26 specification support
+- ✅ **Plugin System** - Memory, Git, and Editor services with extensible architecture
+- ✅ **Daemon Process Management** - Full production daemon with PID files, signal handling, systemd integration
 - ✅ **Bar-Raising Quality** - Thread-safe operations, proper error handling, resource cleanup
 - 📋 All decisions documented in ADRs following XVC methodology
 - 🔍 100% LLM-debuggable through comprehensive logging
@@ -179,6 +184,57 @@ The build system follows the **single source of truth** principle:
 - All build configuration is in `scripts/build.sh`
 - Makefile delegates to the build script
 - No duplication of build logic
+
+## Quick Start
+
+### Development Mode
+```bash
+# Build the binary
+make build
+
+# Run in development mode
+./build/mcpeg --dev
+
+# Check status
+./build/mcpeg --status
+```
+
+### Production Daemon Mode
+```bash
+# Start as daemon
+./build/mcpeg --daemon
+
+# Control daemon
+./build/mcpeg --stop
+./build/mcpeg --restart
+./build/mcpeg --status --verbose
+
+# Log rotation
+./build/mcpeg --log-rotate
+```
+
+### System Service Installation
+```bash
+# Install as systemd service
+sudo ./scripts/install-service.sh
+
+# Control via systemd
+sudo systemctl start mcpeg
+sudo systemctl enable mcpeg
+sudo systemctl status mcpeg
+
+# View logs
+journalctl -u mcpeg -f
+```
+
+### Management Scripts
+```bash
+# Using management scripts
+./scripts/mcpeg-start.sh
+./scripts/mcpeg-stop.sh
+./scripts/mcpeg-restart.sh
+./scripts/mcpeg-status.sh --verbose --logs
+```
 
 ## Contributing
 

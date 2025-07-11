@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -158,8 +161,14 @@ func (l *Loader) LoadFromDirectory(dirPath string, configs map[string]interface{
 
 // applyEnvironmentOverrides applies environment variable overrides to configuration
 func (l *Loader) applyEnvironmentOverrides(config interface{}, envPrefix string) error {
-	// This is a simplified implementation
-	// In a production system, you'd want more sophisticated environment variable mapping
+	// Use reflection to apply environment variable overrides
+	configValue := reflect.ValueOf(config)
+	if configValue.Kind() != reflect.Ptr || configValue.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("config must be a pointer to a struct")
+	}
+	
+	configStruct := configValue.Elem()
+	configType := configStruct.Type()
 	
 	envVars := os.Environ()
 	prefix := envPrefix + "_"
@@ -176,13 +185,22 @@ func (l *Loader) applyEnvironmentOverrides(config interface{}, envPrefix string)
 		}
 
 		key := strings.TrimPrefix(parts[0], prefix)
+		value := parts[1]
+
+		// Apply the override using reflection
+		if err := l.applyEnvOverride(configStruct, configType, key, value); err != nil {
+			l.logger.Warn("config_env_override_failed",
+				"key", key,
+				"env_var", parts[0],
+				"error", err)
+			continue
+		}
 
 		l.logger.Debug("config_env_override_applied",
 			"key", key,
-			"env_var", parts[0])
+			"env_var", parts[0],
+			"value", value)
 
-		// Here you would implement the actual override logic
-		// This would require reflection or a more sophisticated mapping system
 		overrideCount++
 	}
 
@@ -192,6 +210,99 @@ func (l *Loader) applyEnvironmentOverrides(config interface{}, envPrefix string)
 			"env_prefix", envPrefix)
 	}
 
+	return nil
+}
+
+// applyEnvOverride applies a single environment variable override using reflection
+func (l *Loader) applyEnvOverride(configStruct reflect.Value, configType reflect.Type, key string, value string) error {
+	// Convert environment variable key to struct field name
+	// Convert UPPER_SNAKE_CASE to PascalCase
+	fieldName := l.envKeyToFieldName(key)
+	
+	// Find the field
+	field := configStruct.FieldByName(fieldName)
+	if !field.IsValid() {
+		return fmt.Errorf("field %s not found", fieldName)
+	}
+	
+	if !field.CanSet() {
+		return fmt.Errorf("field %s cannot be set", fieldName)
+	}
+	
+	// Convert the string value to the appropriate type
+	return l.setFieldValue(field, value, fieldName)
+}
+
+// envKeyToFieldName converts environment variable key to struct field name
+func (l *Loader) envKeyToFieldName(key string) string {
+	// Convert UPPER_SNAKE_CASE to PascalCase
+	parts := strings.Split(strings.ToLower(key), "_")
+	result := ""
+	for _, part := range parts {
+		if len(part) > 0 {
+			result += strings.Title(part)
+		}
+	}
+	return result
+}
+
+// setFieldValue sets a field value with proper type conversion
+func (l *Loader) setFieldValue(field reflect.Value, value string, fieldName string) error {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		intVal, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid integer value for %s: %w", fieldName, err)
+		}
+		field.SetInt(intVal)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		uintVal, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid unsigned integer value for %s: %w", fieldName, err)
+		}
+		field.SetUint(uintVal)
+	case reflect.Float32, reflect.Float64:
+		floatVal, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("invalid float value for %s: %w", fieldName, err)
+		}
+		field.SetFloat(floatVal)
+	case reflect.Bool:
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value for %s: %w", fieldName, err)
+		}
+		field.SetBool(boolVal)
+	case reflect.Slice:
+		// Handle slices (e.g., []string)
+		if field.Type().Elem().Kind() == reflect.String {
+			// Split comma-separated values
+			values := strings.Split(value, ",")
+			slice := reflect.MakeSlice(field.Type(), len(values), len(values))
+			for i, v := range values {
+				slice.Index(i).SetString(strings.TrimSpace(v))
+			}
+			field.Set(slice)
+		} else {
+			return fmt.Errorf("unsupported slice type for %s", fieldName)
+		}
+	case reflect.Struct:
+		// Handle time.Duration
+		if field.Type().String() == "time.Duration" {
+			duration, err := time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("invalid duration value for %s: %w", fieldName, err)
+			}
+			field.Set(reflect.ValueOf(duration))
+		} else {
+			return fmt.Errorf("unsupported struct type for %s: %s", fieldName, field.Type())
+		}
+	default:
+		return fmt.Errorf("unsupported field type for %s: %s", fieldName, field.Kind())
+	}
+	
 	return nil
 }
 
