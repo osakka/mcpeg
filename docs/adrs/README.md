@@ -24,6 +24,7 @@ An Architecture Decision Record captures an important architectural decision mad
 | 2025-07-11 | [ADR-012](012-advanced-mcp-services.md) | Advanced MCP Services (Git, Editor, Search, Memory) | Proposed |
 | 2025-07-11 | [ADR-013](013-metrics-as-core-infrastructure.md) | Metrics as Core Infrastructure | Proposed |
 | 2025-07-11 | [ADR-014](014-missing-infrastructure-components.md) | Missing Infrastructure Components | Proposed |
+| 2025-07-11 | [ADR-015](015-mcp-security-and-registration.md) | MCP Security and Registration Requirements | Proposed |
 
 ## ADR Status
 

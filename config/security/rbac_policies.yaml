@@ -1,0 +1,275 @@
+# RBAC (Role-Based Access Control) Policies for MCPEG
+
+# Define roles and their permissions
+roles:
+  # Administrative role - full access
+  admin:
+    description: "Full administrative access to all MCPEG functions"
+    permissions:
+      - "mcp:*"                    # All MCP operations
+      - "admin:*"                  # All admin operations
+      - "service:*"                # All service operations
+      - "config:*"                 # All configuration operations
+      
+  # Developer role - development operations
+  developer:
+    description: "Development access to tools and resources"
+    permissions:
+      - "mcp:initialize"
+      - "mcp:tools:list"
+      - "mcp:tools:call"
+      - "mcp:resources:list"
+      - "mcp:resources:read"
+      - "mcp:prompts:list"
+      - "mcp:prompts:get"
+      - "service:mysql:query"       # Can query databases
+      - "service:git:read"          # Can read git info
+      - "service:editor:read"       # Can read files
+      - "service:search:query"      # Can search
+      - "service:memory:read"       # Can read memories
+      
+  # Analyst role - read-only access
+  analyst:
+    description: "Read-only access for data analysis"
+    permissions:
+      - "mcp:initialize"
+      - "mcp:resources:list"
+      - "mcp:resources:read"
+      - "mcp:prompts:list"
+      - "mcp:prompts:get"
+      - "service:mysql:query:readonly"  # Read-only DB queries
+      - "service:search:query"
+      - "service:memory:read"
+      
+  # Service role - for automated systems
+  service:
+    description: "Service-to-service communication"
+    permissions:
+      - "mcp:initialize"
+      - "mcp:tools:call"
+      - "service:*:readonly"
+      
+  # Guest role - minimal access
+  guest:
+    description: "Limited guest access"
+    permissions:
+      - "mcp:initialize"
+      - "mcp:resources:list"
+      - "service:weather:query"     # Only weather data
+
+# Define users and their role assignments
+users:
+  # Administrative users
+  "admin@company.com":
+    roles: ["admin"]
+    additional_permissions: []
+    restrictions: []
+    
+  # Developer users
+  "dev1@company.com":
+    roles: ["developer"]
+    additional_permissions:
+      - "service:vault:read"        # Extra permission for secrets
+    restrictions:
+      - "service:mysql:write"       # Explicitly deny write access
+      
+  "dev2@company.com":
+    roles: ["developer"]
+    additional_permissions: []
+    restrictions: []
+    
+  # Analyst users
+  "analyst@company.com":
+    roles: ["analyst"]
+    additional_permissions: []
+    restrictions: []
+
+# Define service accounts
+service_accounts:
+  # CI/CD system
+  "ci-system":
+    roles: ["service"]
+    additional_permissions:
+      - "service:git:*"             # Full git access for CI
+      - "admin:health:check"        # Can check system health
+    restrictions: []
+    
+  # Monitoring system
+  "monitoring":
+    roles: []
+    additional_permissions:
+      - "admin:health:*"            # Health monitoring
+      - "admin:metrics:read"        # Metrics collection
+    restrictions: []
+    
+  # Backup system
+  "backup":
+    roles: []
+    additional_permissions:
+      - "mcp:resources:read"        # Can read all resources for backup
+      - "service:*:backup"          # Backup operations
+    restrictions:
+      - "service:*:write"           # No write operations
+
+# API key-based access (for non-user authentication)
+api_keys:
+  # External integration API key
+  "integration-key-001":
+    roles: ["service"]
+    additional_permissions:
+      - "service:weather:*"
+      - "service:search:query"
+    restrictions: []
+    rate_limit:
+      requests_per_minute: 100
+      burst: 10
+      
+  # Public API key (very limited)
+  "public-api-key":
+    roles: ["guest"]
+    additional_permissions: []
+    restrictions: []
+    rate_limit:
+      requests_per_minute: 10
+      burst: 2
+
+# Resource-based access control
+resources:
+  # Database access patterns
+  "service:mysql:*":
+    required_permissions: ["service:mysql:access"]
+    additional_checks:
+      - type: "ip_restriction"
+        allowed_ips: ["10.0.0.0/8", "192.168.0.0/16"]
+      - type: "time_restriction"
+        allowed_hours: "09:00-17:00"
+        timezone: "UTC"
+        
+  # Sensitive service access
+  "service:vault:*":
+    required_permissions: ["service:vault:access"]
+    additional_checks:
+      - type: "mfa_required"
+        methods: ["totp", "hardware_key"]
+      - type: "audit_log"
+        level: "detailed"
+        
+  # Memory service access
+  "service:memory:write":
+    required_permissions: ["service:memory:write"]
+    additional_checks:
+      - type: "rate_limit"
+        requests_per_hour: 100
+      - type: "size_limit"
+        max_memory_mb: 10
+
+# Permission inheritance and composition
+permission_groups:
+  # Database permissions
+  database_read:
+    permissions:
+      - "service:mysql:query:readonly"
+      - "service:postgresql:query:readonly"
+      - "service:mongodb:query:readonly"
+      
+  database_write:
+    inherits: ["database_read"]
+    permissions:
+      - "service:mysql:query:write"
+      - "service:postgresql:query:write"
+      - "service:mongodb:query:write"
+      
+  # Development tools
+  dev_tools:
+    permissions:
+      - "service:git:*"
+      - "service:editor:*"
+      - "service:search:*"
+      
+  # Analytics tools
+  analytics_tools:
+    permissions:
+      - "service:search:query"
+      - "service:memory:read"
+      - "service:mysql:query:readonly"
+
+# Conditional access policies
+conditional_policies:
+  # Time-based access restrictions
+  - name: "business_hours_only"
+    condition:
+      type: "time_range"
+      start_time: "09:00"
+      end_time: "17:00"
+      timezone: "UTC"
+      days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    applies_to:
+      roles: ["developer", "analyst"]
+      permissions: ["service:mysql:*", "service:vault:*"]
+      
+  # Location-based restrictions
+  - name: "secure_location_only"
+    condition:
+      type: "ip_range"
+      allowed_ranges: ["10.0.0.0/8", "192.168.1.0/24"]
+    applies_to:
+      permissions: ["service:vault:*", "admin:*"]
+      
+  # Multi-factor authentication requirements
+  - name: "mfa_for_sensitive_ops"
+    condition:
+      type: "mfa_verified"
+      max_age_minutes: 30
+    applies_to:
+      permissions: ["service:vault:write", "admin:config:*", "service:memory:write"]
+
+# Audit and compliance settings
+audit:
+  # Log all permission checks
+  log_permission_checks: true
+  
+  # Log successful and failed access attempts
+  log_access_attempts: true
+  
+  # Detailed logging for sensitive operations
+  detailed_logging:
+    - "service:vault:*"
+    - "admin:*"
+    - "service:memory:write"
+    
+  # Retention policy for audit logs
+  retention:
+    access_logs: "1y"
+    permission_logs: "2y"
+    sensitive_operation_logs: "7y"
+    
+# Emergency access procedures
+emergency_access:
+  # Break-glass account for emergencies
+  break_glass:
+    enabled: true
+    username: "emergency"
+    requires_approval: true
+    max_duration_hours: 4
+    auto_disable: true
+    
+  # Emergency role with temporary elevated privileges
+  emergency_role:
+    permissions: ["admin:*"]
+    requires_justification: true
+    auto_expire_hours: 2
+    notification_required: true
+
+# Policy validation and testing
+validation:
+  # Test users for policy validation
+  test_scenarios:
+    - user: "test_developer"
+      roles: ["developer"]
+      expected_permissions: ["mcp:tools:call", "service:mysql:query"]
+      denied_permissions: ["admin:*", "service:vault:write"]
+      
+    - user: "test_analyst"
+      roles: ["analyst"]
+      expected_permissions: ["mcp:resources:read"]
+      denied_permissions: ["mcp:tools:call", "service:mysql:write"]
