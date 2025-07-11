@@ -15,6 +15,6 @@
   <circle cx="95" cy="45" r="4" fill="#60a5fa"/>
   
   <!-- Bottom text area -->
-  <text x="60" y="85" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#ffffff">MC PEG</text>
+  <text x="60" y="85" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#ffffff">MCpeg</text>
   <text x="60" y="100" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="8" fill="#bfdbfe">GATEWAY</text>
 </svg>

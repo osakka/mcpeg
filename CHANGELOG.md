@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Branding and Identity
 - **Official Logo**: Clean SVG logo representing the "peg" concept with connection visualization
-- **Brand Consistency**: Clarified pronunciation as "MC PEG" throughout documentation
+- **Brand Consistency**: Clarified pronunciation as "MC peg" with "MCpeg" spelling throughout documentation
 - **Visual Identity**: Logo incorporates hexagonal peg shape with connection lines showing gateway functionality
 
 ### Changed
