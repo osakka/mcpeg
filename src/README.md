@@ -1,34 +1,24 @@
-# Source Code Directory
+# Source Code Directory (Legacy)
 
-This directory contains all source code for the MCPEG project.
+This directory is maintained for API schema generation only.
 
-## Go Project Structure
+## Contents
 
 - `/api/` - MCP API schema definitions and generated code
   - OpenAPI/JSON Schema specifications
   - Generated Go types and validators
   - No manual modifications to generated code
-  
+
+## Note on Go Project Structure
+
+The actual Go source code follows standard Go project layout at the repository root:
+
 - `/cmd/mcpeg/` - Main application entry point
-  - Command-line interface
-  - Server initialization
-  
 - `/internal/` - Private application code
-  - `/adapter/` - Service adapter interfaces and implementations
-    - `/rest/` - REST API adapter
-    - `/binary/` - Binary execution adapter (future)
-  - `/config/` - Configuration loading and validation
-  - `/mcp/` - MCP protocol implementation
-    - `/server/` - MCP server implementation
-    - `/handlers/` - Protocol method handlers
-  - `/validation/` - Built-in validation framework
-    - `/compliance/` - MCP compliance testing
-    - `/config/` - Configuration validation
-    - `/diagnostics/` - Diagnostic endpoints
-    
-- `/pkg/` - Public libraries (can be imported by external projects)
-  - `/templates/` - Template engine for value substitution
-  - `/transform/` - Response transformation utilities
+- `/pkg/` - Public libraries
+- `/go.mod` - Go module definition (at root)
+
+This separation allows us to keep generated API schemas isolated while following Go conventions.
 
 ## Development Guidelines
 
