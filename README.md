@@ -15,15 +15,22 @@ MCPEG acts as a bridge between MCP-compliant clients and various backend service
 
 ## Project Structure
 
-- `/src` - Source code including API schemas and implementation
-- `/build` - Build artifacts and compiled code
-- `/docs` - Documentation, ADRs, and guidelines
-- `/CHANGELOG.md` - Version history and changes
-- `/CLAUDE.md` - AI assistant context and instructions
+See [Project Structure Guide](docs/development/project-structure.md) for detailed layout.
+
+- `/cmd` - Application entry points
+- `/internal` - Private application code  
+- `/pkg` - Public Go packages
+- `/src` - Generated API schemas only
+- `/build` - Build artifacts
+- `/docs` - All documentation
+  - `/adrs` - Architecture Decision Records
+  - `/architecture` - System design documents
+  - `/development` - Development guides (XVC, structure, etc.)
+  - `/guidelines` - Coding and process guidelines
 
 ## Development Methodology: XVC Framework
 
-This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) principles for human-LLM collaboration:
+This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) principles for human-LLM collaboration. See our [XVC Methodology Guide](docs/development/xvc-methodology.md) for details.
 
 ### Core XVC Principles Applied:
 

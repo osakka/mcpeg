@@ -119,5 +119,6 @@ func (adapter *RESTAdapter) Validate() error {
 ## Resources
 
 - [XVC Framework](https://github.com/osakka/xvc)
-- [MCPEG ADRs](/docs/adrs/)
-- [LLM Logging Guidelines](/docs/guidelines/llm-logging.md)
+- [MCPEG ADRs](../adrs/)
+- [LLM Logging Guidelines](../guidelines/llm-logging.md)
+- [Project Structure](project-structure.md)
