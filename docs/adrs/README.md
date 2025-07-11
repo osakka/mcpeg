@@ -18,7 +18,8 @@ An Architecture Decision Record captures an important architectural decision mad
 | 2025-07-11 | [ADR-006](006-prioritize-rest-adapters.md) | Prioritize REST API Adapters | Accepted |
 | 2025-07-11 | [ADR-007](007-built-in-validation-framework.md) | Built-in Validation and Testing Framework | Accepted |
 | 2025-07-11 | [ADR-008](008-llm-optimized-logging.md) | LLM-Optimized Logging for 100% Troubleshooting | Accepted |
-| 2025-07-11 | [ADR-009](009-concurrency-and-memory-management.md) | Concurrency and Memory Management Patterns | Proposed |
+| 2025-07-11 | [ADR-009](009-concurrency-and-memory-management.md) | Concurrency and Memory Management Patterns | Accepted |
+| 2025-07-11 | [ADR-010](010-multi-service-gateway.md) | Multi-Service Gateway Architecture | Proposed |
 
 ## ADR Status
 
