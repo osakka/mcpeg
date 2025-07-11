@@ -82,6 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON response handling with proper error management and content types
 - Thread-safe operations across all components with proper mutex usage
 - Memory management and resource cleanup in all background processes
+- **Plugin Registration System**: Extended URL validation to accept `plugin://` scheme for internal plugin endpoints
+- **Service Registry Integration**: Added plugin-aware health check bypass to prevent HTTP health checks on plugin URLs
+- **Plugin Service Discovery**: All three built-in plugins (Memory, Git, Editor) now register successfully with service registry
 
 ### Security
 - Circuit breaker pattern implementation for service protection

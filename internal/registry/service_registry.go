@@ -663,6 +663,15 @@ func (sr *ServiceRegistry) performHealthCheck(ctx context.Context, service *Regi
 		"service_name", service.Name,
 		"endpoint", service.Endpoint)
 
+	// Skip health checks for plugin endpoints - they are managed internally
+	if strings.HasPrefix(service.Endpoint, "plugin://") {
+		sr.logger.Debug("skipping_health_check_for_plugin",
+			"service_id", service.ID,
+			"service_name", service.Name,
+			"endpoint", service.Endpoint)
+		return sr.updateServiceHealth(service, HealthHealthy, nil, time.Since(startTime))
+	}
+
 	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: 5 * time.Second,

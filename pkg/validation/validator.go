@@ -639,8 +639,11 @@ func (v *Validator) validateURL(value interface{}) bool {
 		return false
 	}
 	
-	urlRegex := regexp.MustCompile(`^https?://[^\s/$.?#].[^\s]*$`)
-	return urlRegex.MatchString(str)
+	// Accept HTTP/HTTPS URLs and internal plugin URLs
+	httpRegex := regexp.MustCompile(`^https?://[^\s/$.?#].[^\s]*$`)
+	pluginRegex := regexp.MustCompile(`^plugin://[^\s]*$`)
+	
+	return httpRegex.MatchString(str) || pluginRegex.MatchString(str)
 }
 
 func (v *Validator) validateRegex(value interface{}, pattern string) bool {

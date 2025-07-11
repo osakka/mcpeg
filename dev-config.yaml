@@ -1,0 +1,17 @@
+server:
+  address: "0.0.0.0"
+  port: 8080
+  tls:
+    enabled: false
+
+development:
+  enabled: true
+  debug_mode: true
+  admin_endpoints:
+    enabled: true
+
+logging:
+  level: "debug"
+
+metrics:
+  enabled: true
