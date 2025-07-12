@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mcpeg-gateway": {
+      "command": "./build/mcpeg",
+      "args": ["gateway", "--dev"],
+      "env": {
+        "LOG_LEVEL": "debug",
+        "MCP_DEBUG": "true"
+      }
+    }
+  }
+}

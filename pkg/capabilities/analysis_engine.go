@@ -88,12 +88,12 @@ func (ae *AnalysisEngine) AnalyzeCapability(ctx context.Context, pluginName stri
 		ae.analyzeSemanticProperties(analysis)
 	}
 
-	// Store analysis
+	// Store analysis with thread safety
 	key := fmt.Sprintf("%s:%s", pluginName, analysis.CapabilityName)
+	ae.mutex.Lock()
 	ae.analyses[key] = analysis
-
-	// Update category mapping
 	ae.updateCategoryMapping(analysis)
+	ae.mutex.Unlock()
 
 	ae.logger.WithContext(ctx).Info("capability_analyzed",
 		"plugin", pluginName,
@@ -422,16 +422,28 @@ func min(a, b float64) float64 {
 // GetAnalysis retrieves analysis for a specific capability
 func (ae *AnalysisEngine) GetAnalysis(pluginName, capabilityName string) (*CapabilityAnalysis, bool) {
 	key := fmt.Sprintf("%s:%s", pluginName, capabilityName)
+	ae.mutex.RLock()
 	analysis, exists := ae.analyses[key]
+	ae.mutex.RUnlock()
 	return analysis, exists
 }
 
 // GetAnalysesByCategory returns all analyses for a semantic category
 func (ae *AnalysisEngine) GetAnalysesByCategory(category SemanticCategory) []*CapabilityAnalysis {
-	return ae.categories[category]
+	ae.mutex.RLock()
+	result := make([]*CapabilityAnalysis, len(ae.categories[category]))
+	copy(result, ae.categories[category])
+	ae.mutex.RUnlock()
+	return result
 }
 
 // GetAllAnalyses returns all capability analyses
 func (ae *AnalysisEngine) GetAllAnalyses() map[string]*CapabilityAnalysis {
-	return ae.analyses
+	ae.mutex.RLock()
+	result := make(map[string]*CapabilityAnalysis)
+	for k, v := range ae.analyses {
+		result[k] = v
+	}
+	ae.mutex.RUnlock()
+	return result
 }

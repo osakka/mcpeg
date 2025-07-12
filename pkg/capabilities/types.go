@@ -1,6 +1,7 @@
 package capabilities
 
 import (
+	"sync"
 	"time"
 
 	"github.com/osakka/mcpeg/pkg/logging"
@@ -112,6 +113,9 @@ type AnalysisEngine struct {
 	analyses map[string]*CapabilityAnalysis // key: plugin:capability
 	relations map[string][]CapabilityRelation
 	categories map[SemanticCategory][]*CapabilityAnalysis
+	
+	// Synchronization
+	mutex sync.RWMutex
 
 	// Configuration
 	config AnalysisConfig

@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete plugin operation tracking with detailed step-by-step progress monitoring
 - Automatic rollback capabilities with configurable failure policies
 - Plugin versioning system with upgrade validation and audit trails
+- **Comprehensive MCP Testing Infrastructure**: Complete testing methodology with automated test client, integration tests, and MCP Inspector configuration
+- **Thread-Safe Capability Analysis**: Critical concurrency fix for Phase 2 intelligence system with proper mutex synchronization
 
 #### Major Feature Implementation (Production-Ready)
 - **YAML Configuration System**: Advanced loader with environment variable overrides and validation interfaces
@@ -99,6 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plugin Registration System**: Extended URL validation to accept `plugin://` scheme for internal plugin endpoints
 - **Service Registry Integration**: Added plugin-aware health check bypass to prevent HTTP health checks on plugin URLs
 - **Plugin Service Discovery**: All three built-in plugins (Memory, Git, Editor) now register successfully with service registry
+- **Critical Concurrency Bug**: Fixed concurrent map writes in Phase 2 capability analysis engine with proper RWMutex synchronization
+- **ADR Directory Consolidation**: Eliminated duplicate ADR directories, maintaining single source of truth in docs/adrs/
 
 ### Security
 - Circuit breaker pattern implementation for service protection
