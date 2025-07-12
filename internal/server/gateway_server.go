@@ -141,6 +141,9 @@ func NewGatewayServerWithVersion(
 	}
 	pluginHandler := mcp.NewPluginHandler(pluginManager, pluginHandlerConfig, logger, metrics)
 
+	// Set the service registry on the plugin handler for Phase 2 discovery
+	pluginHandler.SetRegistry(serviceRegistry)
+
 	// Create MCP router with plugin support
 	mcpRouter := router.NewMCPRouter(serviceRegistry, pluginHandler, rbacEngine, logger, metrics, validator)
 

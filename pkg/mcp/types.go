@@ -29,6 +29,69 @@ type PluginHandler interface {
 
 	// HealthCheck checks if a plugin is healthy and accessible
 	HealthCheck(pluginName string) (*PluginHealth, error)
+
+	// Phase 2: Advanced Plugin Discovery Methods
+
+	// DiscoverPlugins performs enhanced plugin discovery
+	DiscoverPlugins(ctx context.Context) error
+
+	// GetDiscoveredPlugins returns all discovered plugins with enhanced metadata
+	GetDiscoveredPlugins() map[string]interface{}
+
+	// GetPluginsByCapability returns plugins filtered by capability requirements
+	GetPluginsByCapability(requirements []string) []interface{}
+
+	// GetPluginDependencies returns dependency information for all plugins
+	GetPluginDependencies() map[string]interface{}
+
+	// GetEnhancedPluginCapabilities returns detailed capability information for a plugin
+	GetEnhancedPluginCapabilities(pluginName string, capabilities *rbac.ProcessedCapabilities) (interface{}, error)
+
+	// Phase 3: Plugin-to-Plugin Communication Methods
+
+	// SendPluginMessage sends a message from one plugin to another
+	SendPluginMessage(ctx context.Context, fromPlugin, toPlugin, messageType string, payload map[string]interface{}) (interface{}, error)
+
+	// ReceivePluginMessages retrieves messages for a plugin
+	ReceivePluginMessages(ctx context.Context, pluginName string) (interface{}, error)
+
+	// PublishPluginEvent publishes an event to the plugin event bus
+	PublishPluginEvent(ctx context.Context, eventType, source string, data map[string]interface{}) error
+
+	// RegisterPluginService registers a service provided by a plugin
+	RegisterPluginService(ctx context.Context, service interface{}) error
+
+	// DiscoverPluginServices discovers services provided by other plugins
+	DiscoverPluginServices(ctx context.Context, pluginName string, capabilities []string) (interface{}, error)
+
+	// CallPluginService calls a service provided by another plugin
+	CallPluginService(ctx context.Context, fromPlugin, serviceID, endpoint string, params map[string]interface{}) (interface{}, error)
+
+	// GetCommunicationLog returns recent plugin communication entries
+	GetCommunicationLog(ctx context.Context, limit int) (interface{}, error)
+
+	// Phase 4: Hot Plugin Reloading Methods
+
+	// ReloadPlugin performs a hot reload of a specific plugin
+	ReloadPlugin(ctx context.Context, pluginName string, newPluginData interface{}) (interface{}, error)
+
+	// GetReloadStatus returns the status of a reload operation
+	GetReloadStatus(operationID string) (interface{}, error)
+
+	// GetActiveReloads returns all currently active reload operations
+	GetActiveReloads() (interface{}, error)
+
+	// GetReloadHistory returns recent reload operations
+	GetReloadHistory(limit int) (interface{}, error)
+
+	// CancelReload attempts to cancel an ongoing reload operation
+	CancelReload(operationID string) error
+
+	// RollbackPlugin rolls back a plugin to its previous version
+	RollbackPlugin(ctx context.Context, pluginName string) error
+
+	// GetPluginVersions returns current versions of all plugins
+	GetPluginVersions() (interface{}, error)
 }
 
 // PluginCapabilities represents the capabilities of a plugin
@@ -50,6 +113,8 @@ type PluginHealth struct {
 	LastCheck time.Time `json:"last_check"`
 	Error     string    `json:"error,omitempty"`
 }
+
+// Phase 2: Advanced Plugin Discovery Types - forward declarations to avoid circular imports
 
 // MCP Protocol Types (based on MCP 2025-03-26 specification)
 

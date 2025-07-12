@@ -143,4 +143,9 @@ make validate
 
 - We don't use - we always use -- for long flags
 
+### Project Details
+
+- **Project Characteristics**:
+  - This is an MCP server
+
 This context file should be consulted before making any significant changes to ensure consistency with project principles and patterns.

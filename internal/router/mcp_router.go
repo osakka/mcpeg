@@ -1158,6 +1158,51 @@ func (mr *MCPRouter) tryPluginRouting(ctx context.Context, reqCtx *RequestContex
 		return mr.handlePluginResourcesList(ctx, reqCtx, mcpReq)
 	case "prompts/list":
 		return mr.handlePluginPromptsList(ctx, reqCtx, mcpReq)
+
+	// Phase 2: Advanced Plugin Discovery endpoints
+	case "plugins/discover":
+		return mr.handlePluginDiscover(ctx, reqCtx, mcpReq)
+	case "plugins/list":
+		return mr.handlePluginList(ctx, reqCtx, mcpReq)
+	case "plugins/capabilities":
+		return mr.handlePluginCapabilities(ctx, reqCtx, mcpReq)
+	case "plugins/dependencies":
+		return mr.handlePluginDependencies(ctx, reqCtx, mcpReq)
+	case "plugins/filter":
+		return mr.handlePluginFilter(ctx, reqCtx, mcpReq)
+
+	// Phase 3: Plugin-to-Plugin Communication endpoints
+	case "plugins/message/send":
+		return mr.handlePluginMessageSend(ctx, reqCtx, mcpReq)
+	case "plugins/message/receive":
+		return mr.handlePluginMessageReceive(ctx, reqCtx, mcpReq)
+	case "plugins/event/publish":
+		return mr.handlePluginEventPublish(ctx, reqCtx, mcpReq)
+	case "plugins/service/register":
+		return mr.handlePluginServiceRegister(ctx, reqCtx, mcpReq)
+	case "plugins/service/discover":
+		return mr.handlePluginServiceDiscover(ctx, reqCtx, mcpReq)
+	case "plugins/service/call":
+		return mr.handlePluginServiceCall(ctx, reqCtx, mcpReq)
+	case "plugins/communication/log":
+		return mr.handlePluginCommunicationLog(ctx, reqCtx, mcpReq)
+
+	// Phase 4: Hot Plugin Reloading endpoints
+	case "plugins/reload":
+		return mr.handlePluginReload(ctx, reqCtx, mcpReq)
+	case "plugins/reload/status":
+		return mr.handlePluginReloadStatus(ctx, reqCtx, mcpReq)
+	case "plugins/reload/active":
+		return mr.handlePluginReloadActive(ctx, reqCtx, mcpReq)
+	case "plugins/reload/history":
+		return mr.handlePluginReloadHistory(ctx, reqCtx, mcpReq)
+	case "plugins/reload/cancel":
+		return mr.handlePluginReloadCancel(ctx, reqCtx, mcpReq)
+	case "plugins/rollback":
+		return mr.handlePluginRollback(ctx, reqCtx, mcpReq)
+	case "plugins/versions":
+		return mr.handlePluginVersions(ctx, reqCtx, mcpReq)
+
 	default:
 		// Not a plugin-handled method
 		return nil, false, nil
@@ -1175,6 +1220,11 @@ func (mr *MCPRouter) handlePluginToolsList(ctx context.Context, reqCtx *RequestC
 	// Get all available plugins for user
 	availablePlugins := mr.pluginHandler.ListAvailablePlugins(reqCtx.Capabilities)
 
+	mr.logger.Debug("plugin_access_check",
+		"request_id", reqCtx.RequestID,
+		"available_plugins", availablePlugins,
+		"plugin_count", len(availablePlugins))
+
 	// Aggregate tools from all accessible plugins
 	var allTools []mcpTypes.Tool
 	for _, pluginName := range availablePlugins {
@@ -1185,6 +1235,9 @@ func (mr *MCPRouter) handlePluginToolsList(ctx context.Context, reqCtx *RequestC
 				"error", err)
 			continue
 		}
+		mr.logger.Debug("plugin_tools_retrieved",
+			"plugin", pluginName,
+			"tool_count", len(tools))
 		allTools = append(allTools, tools...)
 	}
 
@@ -1193,6 +1246,11 @@ func (mr *MCPRouter) handlePluginToolsList(ctx context.Context, reqCtx *RequestC
 		"request_id", reqCtx.RequestID,
 		"tool_count", len(allTools),
 		"plugin_count", len(availablePlugins))
+
+	// Always return an array, even if empty
+	if allTools == nil {
+		allTools = []mcpTypes.Tool{}
+	}
 
 	return map[string]interface{}{
 		"tools": allTools,
@@ -1308,6 +1366,11 @@ func (mr *MCPRouter) handlePluginResourcesList(ctx context.Context, reqCtx *Requ
 		"resource_count", len(allResources),
 		"plugin_count", len(availablePlugins))
 
+	// Always return an array, even if empty
+	if allResources == nil {
+		allResources = []mcpTypes.Resource{}
+	}
+
 	return map[string]interface{}{
 		"resources": allResources,
 	}, true, nil
@@ -1343,8 +1406,515 @@ func (mr *MCPRouter) handlePluginPromptsList(ctx context.Context, reqCtx *Reques
 		"prompt_count", len(allPrompts),
 		"plugin_count", len(availablePlugins))
 
+	// Always return an array, even if empty
+	if allPrompts == nil {
+		allPrompts = []mcpTypes.Prompt{}
+	}
+
 	return map[string]interface{}{
 		"prompts": allPrompts,
+	}, true, nil
+}
+
+// Phase 2: Advanced Plugin Discovery Handlers
+
+// handlePluginDiscover handles plugins/discover to trigger plugin discovery
+func (mr *MCPRouter) handlePluginDiscover(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	mr.logger.Info("plugin_discovery_triggered",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID)
+
+	// Trigger plugin discovery
+	if err := mr.pluginHandler.DiscoverPlugins(ctx); err != nil {
+		mr.logger.Error("plugin_discovery_failed",
+			"request_id", reqCtx.RequestID,
+			"error", err)
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_discovery_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_discovery_completed",
+		"request_id", reqCtx.RequestID)
+
+	return map[string]interface{}{
+		"success": true,
+		"message": "Plugin discovery completed successfully",
+	}, true, nil
+}
+
+// handlePluginList handles plugins/list to return discovered plugins with enhanced metadata
+func (mr *MCPRouter) handlePluginList(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	mr.logger.Debug("plugin_list_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID)
+
+	// Get discovered plugins
+	discoveredPlugins := mr.pluginHandler.GetDiscoveredPlugins()
+
+	// Filter plugins based on user capabilities
+	var accessiblePlugins []interface{}
+	for _, plugin := range discoveredPlugins {
+		// Type assert to get the plugin structure
+		if pluginData, ok := plugin.(map[string]interface{}); ok {
+			if pluginName, nameOk := pluginData["name"].(string); nameOk {
+				// Check if user has access to this plugin
+				if reqCtx.Capabilities.HasPermission(pluginName, "read") {
+					accessiblePlugins = append(accessiblePlugins, plugin)
+				}
+			}
+		}
+	}
+
+	mr.metrics.Inc("plugin_list_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_list_completed",
+		"request_id", reqCtx.RequestID,
+		"total_plugins", len(discoveredPlugins),
+		"accessible_plugins", len(accessiblePlugins))
+
+	return map[string]interface{}{
+		"plugins": accessiblePlugins,
+		"total":   len(accessiblePlugins),
+	}, true, nil
+}
+
+// handlePluginCapabilities handles plugins/capabilities to return enhanced capability information
+func (mr *MCPRouter) handlePluginCapabilities(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	// Parse request parameters to get plugin name
+	var params struct {
+		Plugin string `json:"plugin"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Plugin == "" {
+		return map[string]interface{}{
+			"error": "Plugin name is required",
+		}, true, nil
+	}
+
+	mr.logger.Debug("plugin_capabilities_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID,
+		"plugin", params.Plugin)
+
+	// Get enhanced capabilities
+	capabilities, err := mr.pluginHandler.GetEnhancedPluginCapabilities(params.Plugin, reqCtx.Capabilities)
+	if err != nil {
+		mr.logger.Warn("failed_to_get_enhanced_capabilities",
+			"plugin", params.Plugin,
+			"error", err)
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_capabilities_calls", "user_id", reqCtx.UserID, "plugin", params.Plugin)
+	mr.logger.Info("plugin_capabilities_completed",
+		"request_id", reqCtx.RequestID,
+		"plugin", params.Plugin)
+
+	return map[string]interface{}{
+		"plugin":       params.Plugin,
+		"capabilities": capabilities,
+	}, true, nil
+}
+
+// handlePluginDependencies handles plugins/dependencies to return dependency information
+func (mr *MCPRouter) handlePluginDependencies(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	mr.logger.Debug("plugin_dependencies_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID)
+
+	// Get plugin dependencies
+	dependencies := mr.pluginHandler.GetPluginDependencies()
+
+	// Filter dependencies based on user accessible plugins
+	availablePlugins := mr.pluginHandler.ListAvailablePlugins(reqCtx.Capabilities)
+	accessibleDeps := make(map[string]interface{})
+
+	for _, pluginName := range availablePlugins {
+		if dep, exists := dependencies[fmt.Sprintf("builtin-%s", pluginName)]; exists {
+			accessibleDeps[pluginName] = dep
+		}
+	}
+
+	mr.metrics.Inc("plugin_dependencies_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_dependencies_completed",
+		"request_id", reqCtx.RequestID,
+		"accessible_dependencies", len(accessibleDeps))
+
+	return map[string]interface{}{
+		"dependencies": accessibleDeps,
+	}, true, nil
+}
+
+// handlePluginFilter handles plugins/filter to return plugins filtered by capability requirements
+func (mr *MCPRouter) handlePluginFilter(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	// Parse request parameters to get filter criteria
+	var params struct {
+		Requirements []string          `json:"requirements"`
+		Filters      map[string]string `json:"filters"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	mr.logger.Debug("plugin_filter_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID,
+		"requirements", params.Requirements,
+		"filters", params.Filters)
+
+	// Get filtered plugins by capability
+	filteredPlugins := mr.pluginHandler.GetPluginsByCapability(params.Requirements)
+
+	// Apply additional filters based on user access
+	var accessiblePlugins []interface{}
+	for _, plugin := range filteredPlugins {
+		// Type assert to get the plugin structure
+		if pluginData, ok := plugin.(map[string]interface{}); ok {
+			if pluginName, nameOk := pluginData["name"].(string); nameOk {
+				if reqCtx.Capabilities.HasPermission(pluginName, "read") {
+					accessiblePlugins = append(accessiblePlugins, plugin)
+				}
+			}
+		}
+	}
+
+	mr.metrics.Inc("plugin_filter_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_filter_completed",
+		"request_id", reqCtx.RequestID,
+		"requirements", params.Requirements,
+		"filtered_plugins", len(accessiblePlugins))
+
+	return map[string]interface{}{
+		"plugins":      accessiblePlugins,
+		"total":        len(accessiblePlugins),
+		"requirements": params.Requirements,
+		"filters":      params.Filters,
+	}, true, nil
+}
+
+// Phase 3: Plugin-to-Plugin Communication Handlers
+
+// handlePluginMessageSend handles plugins/message/send to send messages between plugins
+func (mr *MCPRouter) handlePluginMessageSend(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		FromPlugin  string                 `json:"from_plugin"`
+		ToPlugin    string                 `json:"to_plugin"`
+		MessageType string                 `json:"message_type"`
+		Payload     map[string]interface{} `json:"payload"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.FromPlugin == "" || params.ToPlugin == "" || params.MessageType == "" {
+		return map[string]interface{}{
+			"error": "Missing required parameters: from_plugin, to_plugin, message_type",
+		}, true, nil
+	}
+
+	mr.logger.Debug("plugin_message_send_started",
+		"request_id", reqCtx.RequestID,
+		"from_plugin", params.FromPlugin,
+		"to_plugin", params.ToPlugin,
+		"message_type", params.MessageType)
+
+	result, err := mr.pluginHandler.SendPluginMessage(ctx, params.FromPlugin, params.ToPlugin, params.MessageType, params.Payload)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_message_send_calls", "from_plugin", params.FromPlugin, "to_plugin", params.ToPlugin)
+	mr.logger.Info("plugin_message_send_completed",
+		"request_id", reqCtx.RequestID,
+		"from_plugin", params.FromPlugin,
+		"to_plugin", params.ToPlugin)
+
+	return map[string]interface{}{
+		"message": result,
+		"success": true,
+	}, true, nil
+}
+
+// handlePluginMessageReceive handles plugins/message/receive to retrieve messages for a plugin
+func (mr *MCPRouter) handlePluginMessageReceive(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Plugin string `json:"plugin"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Plugin == "" {
+		return map[string]interface{}{
+			"error": "Plugin name is required",
+		}, true, nil
+	}
+
+	mr.logger.Debug("plugin_message_receive_started",
+		"request_id", reqCtx.RequestID,
+		"plugin", params.Plugin)
+
+	messages, err := mr.pluginHandler.ReceivePluginMessages(ctx, params.Plugin)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_message_receive_calls", "plugin", params.Plugin)
+
+	return map[string]interface{}{
+		"messages": messages,
+		"plugin":   params.Plugin,
+	}, true, nil
+}
+
+// handlePluginEventPublish handles plugins/event/publish to publish events to the event bus
+func (mr *MCPRouter) handlePluginEventPublish(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		EventType string                 `json:"event_type"`
+		Source    string                 `json:"source"`
+		Data      map[string]interface{} `json:"data"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.EventType == "" || params.Source == "" {
+		return map[string]interface{}{
+			"error": "Missing required parameters: event_type, source",
+		}, true, nil
+	}
+
+	mr.logger.Debug("plugin_event_publish_started",
+		"request_id", reqCtx.RequestID,
+		"event_type", params.EventType,
+		"source", params.Source)
+
+	err := mr.pluginHandler.PublishPluginEvent(ctx, params.EventType, params.Source, params.Data)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_event_publish_calls", "event_type", params.EventType, "source", params.Source)
+
+	return map[string]interface{}{
+		"success": true,
+		"message": "Event published successfully",
+	}, true, nil
+}
+
+// handlePluginServiceRegister handles plugins/service/register to register plugin services
+func (mr *MCPRouter) handlePluginServiceRegister(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Service map[string]interface{} `json:"service"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	mr.logger.Debug("plugin_service_register_started",
+		"request_id", reqCtx.RequestID)
+
+	err := mr.pluginHandler.RegisterPluginService(ctx, params.Service)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_service_register_calls")
+
+	return map[string]interface{}{
+		"success": true,
+		"message": "Service registered successfully",
+	}, true, nil
+}
+
+// handlePluginServiceDiscover handles plugins/service/discover to discover plugin services
+func (mr *MCPRouter) handlePluginServiceDiscover(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Plugin       string   `json:"plugin"`
+		Capabilities []string `json:"capabilities"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Plugin == "" {
+		return map[string]interface{}{
+			"error": "Plugin name is required",
+		}, true, nil
+	}
+
+	mr.logger.Debug("plugin_service_discover_started",
+		"request_id", reqCtx.RequestID,
+		"plugin", params.Plugin,
+		"capabilities", params.Capabilities)
+
+	services, err := mr.pluginHandler.DiscoverPluginServices(ctx, params.Plugin, params.Capabilities)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_service_discover_calls", "plugin", params.Plugin)
+
+	return map[string]interface{}{
+		"services": services,
+		"plugin":   params.Plugin,
+	}, true, nil
+}
+
+// handlePluginServiceCall handles plugins/service/call to call plugin services
+func (mr *MCPRouter) handlePluginServiceCall(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		FromPlugin string                 `json:"from_plugin"`
+		ServiceID  string                 `json:"service_id"`
+		Endpoint   string                 `json:"endpoint"`
+		Params     map[string]interface{} `json:"params"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.FromPlugin == "" || params.ServiceID == "" || params.Endpoint == "" {
+		return map[string]interface{}{
+			"error": "Missing required parameters: from_plugin, service_id, endpoint",
+		}, true, nil
+	}
+
+	mr.logger.Debug("plugin_service_call_started",
+		"request_id", reqCtx.RequestID,
+		"from_plugin", params.FromPlugin,
+		"service_id", params.ServiceID,
+		"endpoint", params.Endpoint)
+
+	result, err := mr.pluginHandler.CallPluginService(ctx, params.FromPlugin, params.ServiceID, params.Endpoint, params.Params)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_service_call_calls", "from_plugin", params.FromPlugin, "service_id", params.ServiceID)
+
+	return map[string]interface{}{
+		"result":  result,
+		"success": true,
+	}, true, nil
+}
+
+// handlePluginCommunicationLog handles plugins/communication/log to retrieve communication logs
+func (mr *MCPRouter) handlePluginCommunicationLog(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Limit int `json:"limit"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Limit == 0 {
+		params.Limit = 100 // Default limit
+	}
+
+	mr.logger.Debug("plugin_communication_log_started",
+		"request_id", reqCtx.RequestID,
+		"limit", params.Limit)
+
+	log, err := mr.pluginHandler.GetCommunicationLog(ctx, params.Limit)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	mr.metrics.Inc("plugin_communication_log_calls")
+
+	return map[string]interface{}{
+		"log":   log,
+		"limit": params.Limit,
 	}, true, nil
 }
 
@@ -1506,4 +2076,217 @@ func (mr *MCPRouter) forwardToService(ctx context.Context, service *registry.Reg
 	}
 
 	return mcpResp.Result, nil
+}
+
+// Phase 4: Hot Plugin Reloading Handler Methods
+
+// handlePluginReload handles plugins/reload to hot reload a plugin
+func (mr *MCPRouter) handlePluginReload(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Plugin        string      `json:"plugin"`
+		NewPluginData interface{} `json:"new_plugin_data,omitempty"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Plugin == "" {
+		return map[string]interface{}{
+			"error": "Plugin name is required",
+		}, true, nil
+	}
+
+	result, err := mr.pluginHandler.ReloadPlugin(ctx, params.Plugin, params.NewPluginData)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"reload_operation": result,
+		"success":          true,
+	}, true, nil
+}
+
+// handlePluginReloadStatus handles plugins/reload/status to get reload operation status
+func (mr *MCPRouter) handlePluginReloadStatus(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		OperationID string `json:"operation_id"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.OperationID == "" {
+		return map[string]interface{}{
+			"error": "Operation ID is required",
+		}, true, nil
+	}
+
+	result, err := mr.pluginHandler.GetReloadStatus(params.OperationID)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"operation": result,
+		"success":   true,
+	}, true, nil
+}
+
+// handlePluginReloadActive handles plugins/reload/active to get active reload operations
+func (mr *MCPRouter) handlePluginReloadActive(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	result, err := mr.pluginHandler.GetActiveReloads()
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"active_reloads": result,
+		"success":        true,
+	}, true, nil
+}
+
+// handlePluginReloadHistory handles plugins/reload/history to get reload history
+func (mr *MCPRouter) handlePluginReloadHistory(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Limit int `json:"limit"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Limit <= 0 {
+		params.Limit = 10 // Default limit
+	}
+
+	result, err := mr.pluginHandler.GetReloadHistory(params.Limit)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"reload_history": result,
+		"limit":          params.Limit,
+		"success":        true,
+	}, true, nil
+}
+
+// handlePluginReloadCancel handles plugins/reload/cancel to cancel a reload operation
+func (mr *MCPRouter) handlePluginReloadCancel(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		OperationID string `json:"operation_id"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.OperationID == "" {
+		return map[string]interface{}{
+			"error": "Operation ID is required",
+		}, true, nil
+	}
+
+	err := mr.pluginHandler.CancelReload(params.OperationID)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"message":      "Reload operation cancellation requested",
+		"operation_id": params.OperationID,
+		"success":      true,
+	}, true, nil
+}
+
+// handlePluginRollback handles plugins/rollback to rollback a plugin
+func (mr *MCPRouter) handlePluginRollback(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	var params struct {
+		Plugin string `json:"plugin"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return map[string]interface{}{
+				"error": "Invalid request parameters",
+			}, true, nil
+		}
+	}
+
+	if params.Plugin == "" {
+		return map[string]interface{}{
+			"error": "Plugin name is required",
+		}, true, nil
+	}
+
+	err := mr.pluginHandler.RollbackPlugin(ctx, params.Plugin)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"message": "Plugin rollback completed",
+		"plugin":  params.Plugin,
+		"success": true,
+	}, true, nil
+}
+
+// handlePluginVersions handles plugins/versions to get current plugin versions
+func (mr *MCPRouter) handlePluginVersions(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	result, err := mr.pluginHandler.GetPluginVersions()
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}, true, nil
+	}
+
+	return map[string]interface{}{
+		"plugin_versions": result,
+		"success":         true,
+	}, true, nil
 }

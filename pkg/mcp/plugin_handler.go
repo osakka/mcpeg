@@ -16,10 +16,13 @@ import (
 
 // PluginHandlerImpl implements the PluginHandler interface
 type PluginHandlerImpl struct {
-	pluginManager *plugins.PluginManager
-	logger        logging.Logger
-	metrics       metrics.Metrics
-	config        PluginHandlerConfig
+	pluginManager       *plugins.PluginManager
+	pluginDiscovery     *PluginDiscovery
+	pluginCommunication *PluginCommunication
+	pluginHotReload     *PluginHotReload
+	logger              logging.Logger
+	metrics             metrics.Metrics
+	config              PluginHandlerConfig
 }
 
 // PluginHandlerConfig configures the plugin handler
@@ -46,12 +49,23 @@ func NewPluginHandler(pluginManager *plugins.PluginManager, config PluginHandler
 		config.CacheTTL = 5 * time.Minute
 	}
 
-	return &PluginHandlerImpl{
+	impl := &PluginHandlerImpl{
 		pluginManager: pluginManager,
 		logger:        logger,
 		metrics:       metrics,
 		config:        config,
 	}
+
+	// Initialize plugin discovery (registry will be set later if available)
+	impl.pluginDiscovery = NewPluginDiscovery(pluginManager, nil, logger, metrics)
+
+	// Initialize plugin communication
+	impl.pluginCommunication = NewPluginCommunication(pluginManager, logger, metrics)
+
+	// Initialize plugin hot reload
+	impl.pluginHotReload = NewPluginHotReload(pluginManager, logger, metrics)
+
+	return impl
 }
 
 // InvokePlugin executes a plugin tool with the given parameters
@@ -172,11 +186,6 @@ func (ph *PluginHandlerImpl) ListAvailablePlugins(capabilities *rbac.ProcessedCa
 		}
 	}
 
-	ph.logger.Debug("plugin_access_list_generated",
-		"user", capabilities.UserID,
-		"total_plugins", len(allPlugins),
-		"accessible_plugins", len(accessible))
-
 	return accessible
 }
 
@@ -194,8 +203,14 @@ func (ph *PluginHandlerImpl) GetPluginTools(pluginName string, capabilities *rba
 	pluginTools := plugin.GetTools()
 	mcpTools := make([]Tool, 0, len(pluginTools))
 
+	// Get user's permissions for this plugin (including wildcard)
+	permission := capabilities.Plugins[pluginName]
+	if wildcardPerm, hasWildcard := capabilities.Plugins["*"]; hasWildcard && len(capabilities.Plugins) == 1 {
+		permission = wildcardPerm
+	}
+
 	for _, tool := range pluginTools {
-		if ph.isToolAllowedForPermission(tool, capabilities.Plugins[pluginName]) {
+		if ph.isToolAllowedForPermission(tool, permission) {
 			mcpTool := Tool{
 				Name:        fmt.Sprintf("%s.%s", pluginName, tool.Name),
 				Description: fmt.Sprintf("[%s] %s", pluginName, tool.Description),
@@ -223,14 +238,24 @@ func (ph *PluginHandlerImpl) GetPluginResources(pluginName string, capabilities 
 	pluginResources := plugin.GetResources()
 	mcpResources := make([]Resource, 0, len(pluginResources))
 
+	// Get user's permissions for this plugin (including wildcard)
 	permission := capabilities.Plugins[pluginName]
+	if wildcardPerm, hasWildcard := capabilities.Plugins["*"]; hasWildcard && len(capabilities.Plugins) == 1 {
+		permission = wildcardPerm
+	}
 	if !permission.CanRead {
 		return mcpResources, nil // No read access, return empty
 	}
 
 	for _, resource := range pluginResources {
+		// Use resource name as URI if URI field is empty
+		resourceURI := resource.URI
+		if resourceURI == "" {
+			resourceURI = resource.Name
+		}
+
 		mcpResource := Resource{
-			URI:         fmt.Sprintf("plugin://%s/%s", pluginName, resource.URI),
+			URI:         fmt.Sprintf("plugin://%s/%s", pluginName, resourceURI),
 			Name:        resource.Name,
 			Description: resource.Description,
 			MimeType:    resource.MimeType,
@@ -255,7 +280,11 @@ func (ph *PluginHandlerImpl) GetPluginPrompts(pluginName string, capabilities *r
 	pluginPrompts := plugin.GetPrompts()
 	mcpPrompts := make([]Prompt, 0, len(pluginPrompts))
 
+	// Get user's permissions for this plugin (including wildcard)
 	permission := capabilities.Plugins[pluginName]
+	if wildcardPerm, hasWildcard := capabilities.Plugins["*"]; hasWildcard && len(capabilities.Plugins) == 1 {
+		permission = wildcardPerm
+	}
 	if !permission.CanRead {
 		return mcpPrompts, nil // No read access, return empty
 	}
@@ -460,4 +489,303 @@ func (ph *PluginHandlerImpl) convertToToolResult(result interface{}) *ToolResult
 			IsError: false,
 		}
 	}
+}
+
+// Enhanced Discovery Methods for Phase 2
+
+// DiscoverPlugins performs enhanced plugin discovery
+func (ph *PluginHandlerImpl) DiscoverPlugins(ctx context.Context) error {
+	if ph.pluginDiscovery == nil {
+		return fmt.Errorf("plugin discovery not initialized")
+	}
+
+	ph.logger.Info("starting_enhanced_plugin_discovery")
+	return ph.pluginDiscovery.DiscoverPlugins(ctx)
+}
+
+// GetDiscoveredPlugins returns all discovered plugins with enhanced metadata
+func (ph *PluginHandlerImpl) GetDiscoveredPlugins() map[string]interface{} {
+	if ph.pluginDiscovery == nil {
+		return make(map[string]interface{})
+	}
+
+	discovered := ph.pluginDiscovery.GetDiscoveredPlugins()
+	result := make(map[string]interface{})
+	for k, v := range discovered {
+		result[k] = v
+	}
+	return result
+}
+
+// GetPluginsByCapability returns plugins filtered by capability requirements
+func (ph *PluginHandlerImpl) GetPluginsByCapability(requirements []string) []interface{} {
+	if ph.pluginDiscovery == nil {
+		return []interface{}{}
+	}
+
+	plugins := ph.pluginDiscovery.GetPluginsByCapability(requirements)
+	result := make([]interface{}, len(plugins))
+	for i, p := range plugins {
+		result[i] = p
+	}
+	return result
+}
+
+// GetPluginDependencies returns dependency information for all plugins
+func (ph *PluginHandlerImpl) GetPluginDependencies() map[string]interface{} {
+	if ph.pluginDiscovery == nil {
+		return make(map[string]interface{})
+	}
+
+	deps := ph.pluginDiscovery.GetPluginDependencies()
+	result := make(map[string]interface{})
+	for k, v := range deps {
+		result[k] = v
+	}
+	return result
+}
+
+// GetEnhancedPluginCapabilities returns detailed capability information for a plugin
+func (ph *PluginHandlerImpl) GetEnhancedPluginCapabilities(pluginName string, capabilities *rbac.ProcessedCapabilities) (interface{}, error) {
+	if !ph.hasPluginAccess(pluginName, capabilities) {
+		return nil, fmt.Errorf("access denied to plugin: %s", pluginName)
+	}
+
+	plugin, exists := ph.pluginManager.GetPlugin(pluginName)
+	if !exists {
+		return nil, fmt.Errorf("plugin not found: %s", pluginName)
+	}
+
+	if ph.pluginDiscovery == nil {
+		return nil, fmt.Errorf("plugin discovery not initialized")
+	}
+
+	return ph.pluginDiscovery.analyzePluginCapabilitiesDeep(plugin)
+}
+
+// SetRegistry sets the service registry for the plugin discovery system
+func (ph *PluginHandlerImpl) SetRegistry(registry *registry.ServiceRegistry) {
+	if ph.pluginDiscovery != nil {
+		ph.pluginDiscovery.registry = registry
+	}
+}
+
+// Phase 3: Plugin-to-Plugin Communication Methods
+
+// SendPluginMessage sends a message from one plugin to another
+func (ph *PluginHandlerImpl) SendPluginMessage(ctx context.Context, fromPlugin, toPlugin, messageType string, payload map[string]interface{}) (interface{}, error) {
+	if ph.pluginCommunication == nil {
+		return nil, fmt.Errorf("plugin communication not initialized")
+	}
+
+	return ph.pluginCommunication.SendMessage(ctx, fromPlugin, toPlugin, messageType, payload)
+}
+
+// ReceivePluginMessages retrieves messages for a plugin
+func (ph *PluginHandlerImpl) ReceivePluginMessages(ctx context.Context, pluginName string) (interface{}, error) {
+	if ph.pluginCommunication == nil {
+		return nil, fmt.Errorf("plugin communication not initialized")
+	}
+
+	return ph.pluginCommunication.ReceiveMessages(ctx, pluginName)
+}
+
+// PublishPluginEvent publishes an event to the plugin event bus
+func (ph *PluginHandlerImpl) PublishPluginEvent(ctx context.Context, eventType, source string, data map[string]interface{}) error {
+	if ph.pluginCommunication == nil {
+		return fmt.Errorf("plugin communication not initialized")
+	}
+
+	return ph.pluginCommunication.PublishEvent(ctx, eventType, source, data)
+}
+
+// RegisterPluginService registers a service provided by a plugin
+func (ph *PluginHandlerImpl) RegisterPluginService(ctx context.Context, service interface{}) error {
+	if ph.pluginCommunication == nil {
+		return fmt.Errorf("plugin communication not initialized")
+	}
+
+	// Type assertion for service
+	pluginService, ok := service.(*PluginService)
+	if !ok {
+		return fmt.Errorf("invalid service type")
+	}
+
+	return ph.pluginCommunication.RegisterService(ctx, pluginService)
+}
+
+// DiscoverPluginServices discovers services provided by other plugins
+func (ph *PluginHandlerImpl) DiscoverPluginServices(ctx context.Context, pluginName string, capabilities []string) (interface{}, error) {
+	if ph.pluginCommunication == nil {
+		return nil, fmt.Errorf("plugin communication not initialized")
+	}
+
+	return ph.pluginCommunication.DiscoverServices(ctx, pluginName, capabilities)
+}
+
+// CallPluginService calls a service provided by another plugin
+func (ph *PluginHandlerImpl) CallPluginService(ctx context.Context, fromPlugin, serviceID, endpoint string, params map[string]interface{}) (interface{}, error) {
+	if ph.pluginCommunication == nil {
+		return nil, fmt.Errorf("plugin communication not initialized")
+	}
+
+	return ph.pluginCommunication.CallService(ctx, fromPlugin, serviceID, endpoint, params)
+}
+
+// GetCommunicationLog returns recent plugin communication entries
+func (ph *PluginHandlerImpl) GetCommunicationLog(ctx context.Context, limit int) (interface{}, error) {
+	if ph.pluginCommunication == nil {
+		return nil, fmt.Errorf("plugin communication not initialized")
+	}
+
+	return ph.pluginCommunication.GetCommunicationLog(ctx, limit)
+}
+
+// Phase 4: Hot Plugin Reloading Methods
+
+// ReloadPlugin performs a hot reload of a specific plugin
+func (ph *PluginHandlerImpl) ReloadPlugin(ctx context.Context, pluginName string, newPluginData interface{}) (interface{}, error) {
+	if ph.pluginHotReload == nil {
+		return nil, fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	// For this implementation, we'll simulate a new plugin by creating a mock plugin
+	// In a real implementation, newPluginData would contain the actual plugin binary/code
+	currentPlugin, exists := ph.pluginManager.GetPlugin(pluginName)
+	if !exists {
+		return nil, fmt.Errorf("plugin %s not found", pluginName)
+	}
+
+	// Create a mock "new" plugin with an incremented version
+	// In reality, this would load the new plugin from the provided data
+	newPlugin := &MockPlugin{
+		name:        currentPlugin.Name(),
+		version:     incrementVersion(currentPlugin.Version()),
+		description: currentPlugin.Description() + " (reloaded)",
+		tools:       currentPlugin.GetTools(),
+		resources:   currentPlugin.GetResources(),
+		prompts:     currentPlugin.GetPrompts(),
+	}
+
+	operation, err := ph.pluginHotReload.ReloadPlugin(ctx, pluginName, newPlugin)
+	if err != nil {
+		return nil, err
+	}
+
+	return operation, nil
+}
+
+// GetReloadStatus returns the status of a reload operation
+func (ph *PluginHandlerImpl) GetReloadStatus(operationID string) (interface{}, error) {
+	if ph.pluginHotReload == nil {
+		return nil, fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	return ph.pluginHotReload.GetReloadStatus(operationID)
+}
+
+// GetActiveReloads returns all currently active reload operations
+func (ph *PluginHandlerImpl) GetActiveReloads() (interface{}, error) {
+	if ph.pluginHotReload == nil {
+		return nil, fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	return ph.pluginHotReload.GetActiveReloads(), nil
+}
+
+// GetReloadHistory returns recent reload operations
+func (ph *PluginHandlerImpl) GetReloadHistory(limit int) (interface{}, error) {
+	if ph.pluginHotReload == nil {
+		return nil, fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	return ph.pluginHotReload.GetReloadHistory(limit), nil
+}
+
+// CancelReload attempts to cancel an ongoing reload operation
+func (ph *PluginHandlerImpl) CancelReload(operationID string) error {
+	if ph.pluginHotReload == nil {
+		return fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	return ph.pluginHotReload.CancelReload(operationID)
+}
+
+// RollbackPlugin rolls back a plugin to its previous version
+func (ph *PluginHandlerImpl) RollbackPlugin(ctx context.Context, pluginName string) error {
+	if ph.pluginHotReload == nil {
+		return fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	return ph.pluginHotReload.RollbackPlugin(ctx, pluginName)
+}
+
+// GetPluginVersions returns current versions of all plugins
+func (ph *PluginHandlerImpl) GetPluginVersions() (interface{}, error) {
+	if ph.pluginHotReload == nil {
+		return nil, fmt.Errorf("plugin hot reload not initialized")
+	}
+
+	return ph.pluginHotReload.GetPluginVersions(), nil
+}
+
+// Helper types and functions for hot reloading
+
+// MockPlugin is a simple plugin implementation for testing hot reload
+type MockPlugin struct {
+	name        string
+	version     string
+	description string
+	tools       []registry.ToolDefinition
+	resources   []registry.ResourceDefinition
+	prompts     []registry.PromptDefinition
+	initialized bool
+}
+
+func (mp *MockPlugin) Name() string                                { return mp.name }
+func (mp *MockPlugin) Version() string                             { return mp.version }
+func (mp *MockPlugin) Description() string                         { return mp.description }
+func (mp *MockPlugin) GetTools() []registry.ToolDefinition         { return mp.tools }
+func (mp *MockPlugin) GetResources() []registry.ResourceDefinition { return mp.resources }
+func (mp *MockPlugin) GetPrompts() []registry.PromptDefinition     { return mp.prompts }
+
+func (mp *MockPlugin) CallTool(ctx context.Context, name string, args json.RawMessage) (interface{}, error) {
+	return fmt.Sprintf("Mock tool call to %s (version %s)", name, mp.version), nil
+}
+
+func (mp *MockPlugin) ReadResource(ctx context.Context, uri string) (interface{}, error) {
+	return fmt.Sprintf("Mock resource read from %s (version %s)", uri, mp.version), nil
+}
+
+func (mp *MockPlugin) ListResources(ctx context.Context) ([]registry.ResourceDefinition, error) {
+	return mp.resources, nil
+}
+
+func (mp *MockPlugin) GetPrompt(ctx context.Context, name string, args json.RawMessage) (interface{}, error) {
+	return fmt.Sprintf("Mock prompt %s (version %s)", name, mp.version), nil
+}
+
+func (mp *MockPlugin) Initialize(ctx context.Context, config plugins.PluginConfig) error {
+	mp.initialized = true
+	return nil
+}
+
+func (mp *MockPlugin) Shutdown(ctx context.Context) error {
+	mp.initialized = false
+	return nil
+}
+
+func (mp *MockPlugin) HealthCheck(ctx context.Context) error {
+	if !mp.initialized {
+		return fmt.Errorf("plugin not initialized")
+	}
+	return nil
+}
+
+// incrementVersion creates a simple version increment for testing
+func incrementVersion(version string) string {
+	if version == "" {
+		return "1.0.1"
+	}
+	return version + ".1"
 }
