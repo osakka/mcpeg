@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Documentation taxonomy and organization improvements
+- Comprehensive documentation restructure following industry standards
+
+## [1.0.0] - 2025-07-12
+
+### Added
 - Initial project structure
 - Research and analysis of MCP protocol specifications
 - Documentation framework with ADRs and guidelines
