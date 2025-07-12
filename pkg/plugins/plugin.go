@@ -229,6 +229,15 @@ func (pm *PluginManager) ListPlugins() map[string]Plugin {
 	return result
 }
 
+// GetPlugins returns a list of all registered plugin names
+func (pm *PluginManager) GetPlugins() []string {
+	names := make([]string, 0, len(pm.plugins))
+	for name := range pm.plugins {
+		names = append(names, name)
+	}
+	return names
+}
+
 // ShutdownAllPlugins shuts down all plugins
 func (pm *PluginManager) ShutdownAllPlugins(ctx context.Context) error {
 	var lastError error

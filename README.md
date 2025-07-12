@@ -24,7 +24,7 @@
 - **API-First Development** - Generated code from official MCP specifications
 - **Production Observability** - Prometheus metrics, structured logging, health checks, and debugging endpoints
 - **Enterprise Plugin System** - Complete MCP Plugin Integration with 20 specialized endpoints
-  - **Advanced Discovery** - Intelligent plugin discovery with capability analysis and dependency resolution
+  - **Advanced Discovery** - Intelligent plugin discovery with semantic capability analysis, quality metrics, dependency resolution, and automated conflict detection
   - **Inter-Plugin Communication** - Message passing, event bus, and service discovery between plugins
   - **Hot Reloading** - Zero-downtime plugin updates with comprehensive operation tracking and rollback
   - **Built-in Services** - Memory, Git, and Editor services with extensible plugin architecture

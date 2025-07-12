@@ -20,6 +20,7 @@ import (
 	"github.com/osakka/mcpeg/internal/registry"
 	"github.com/osakka/mcpeg/internal/router"
 	"github.com/osakka/mcpeg/pkg/auth"
+	"github.com/osakka/mcpeg/pkg/capabilities"
 	"github.com/osakka/mcpeg/pkg/health"
 	"github.com/osakka/mcpeg/pkg/logging"
 	"github.com/osakka/mcpeg/pkg/mcp"
@@ -41,6 +42,12 @@ type GatewayServer struct {
 
 	// Plugin system integration
 	pluginIntegration *plugins.MCpegPluginIntegration
+
+	// Phase 2: Advanced Plugin Discovery and Intelligence
+	analysisEngine    *capabilities.AnalysisEngine
+	discoveryEngine   *capabilities.DiscoveryEngine
+	aggregationEngine *capabilities.AggregationEngine
+	validationEngine  *capabilities.ValidationEngine
 
 	// Build and runtime information
 	version   string
@@ -144,7 +151,63 @@ func NewGatewayServerWithVersion(
 	// Set the service registry on the plugin handler for Phase 2 discovery
 	pluginHandler.SetRegistry(serviceRegistry)
 
-	// Create MCP router with plugin support
+	// Phase 2: Initialize Advanced Plugin Discovery and Intelligence
+	
+	// Create analysis engine for intelligent capability analysis
+	analysisConfig := capabilities.AnalysisConfig{
+		EnableSemanticAnalysis: true,
+		EnableUsageTracking:    true,
+		EnableQualityMetrics:   true,
+		AnalysisInterval:       15 * time.Minute,
+		RelationThreshold:      0.7,
+		CacheTimeout:           1 * time.Hour,
+	}
+	analysisEngine := capabilities.NewAnalysisEngine(logger, metrics, analysisConfig)
+
+	// Create discovery engine with dependency resolution
+	discoveryConfig := capabilities.DiscoveryConfig{
+		AutoDiscovery:          true,
+		DiscoveryInterval:      10 * time.Minute,
+		DependencyResolution:   true,
+		ConflictDetection:      true,
+		RecommendationEngine:   true,
+		MaxDiscoveryDepth:      5,
+		ConcurrentAnalysis:     4,
+		ReanalysisThreshold:    30 * time.Minute,
+	}
+	discoveryEngine := capabilities.NewDiscoveryEngine(
+		logger, metrics, analysisEngine, pluginManager, serviceRegistry, discoveryConfig,
+	)
+
+	// Create aggregation engine for capability aggregation and conflict resolution
+	aggregationConfig := capabilities.AggregationConfig{
+		EnableAggregation:      true,
+		ConflictResolution:     true,
+		AutoConflictResolution: true,
+		AggregationInterval:    20 * time.Minute,
+		ConflictThreshold:      0.5,
+		SimilarityThreshold:    0.8,
+	}
+	aggregationEngine := capabilities.NewAggregationEngine(
+		logger, metrics, discoveryEngine, analysisEngine, aggregationConfig,
+	)
+
+	// Create validation engine for runtime capability validation
+	validationConfig := capabilities.ValidationConfig{
+		EnableRuntimeValidation:   true,
+		EnableCapabilityMonitoring: true,
+		EnablePolicyEnforcement:   true,
+		ValidationInterval:        5 * time.Minute,
+		MonitoringInterval:        1 * time.Minute,
+		ViolationThreshold:        3,
+		AutoRemediation:           true,
+		ValidationTimeout:         10 * time.Second,
+	}
+	validationEngine := capabilities.NewValidationEngine(
+		logger, metrics, aggregationEngine, analysisEngine, validationConfig,
+	)
+
+	// Create MCP router with plugin support and enhanced capabilities
 	mcpRouter := router.NewMCPRouter(serviceRegistry, pluginHandler, rbacEngine, logger, metrics, validator)
 
 	server := &GatewayServer{
@@ -152,6 +215,10 @@ func NewGatewayServerWithVersion(
 		registry:          serviceRegistry,
 		mcpRouter:         mcpRouter,
 		pluginIntegration: pluginIntegration,
+		analysisEngine:    analysisEngine,
+		discoveryEngine:   discoveryEngine,
+		aggregationEngine: aggregationEngine,
+		validationEngine:  validationEngine,
 		logger:            logger.WithComponent("gateway_server"),
 		metrics:           metrics,
 		validator:         validator,
@@ -164,6 +231,9 @@ func NewGatewayServerWithVersion(
 
 	// Setup HTTP server
 	server.setupHTTPServer()
+
+	// Initialize Phase 2 discovery in background
+	server.initializePhase2Discovery()
 
 	return server
 }
@@ -2176,4 +2246,88 @@ func (gs *GatewayServer) adminAuthMiddleware(next http.Handler) http.Handler {
 		// Call the next handler
 		next.ServeHTTP(w, r)
 	})
+}
+
+// initializePhase2Discovery initializes the Phase 2 advanced plugin discovery system
+func (gs *GatewayServer) initializePhase2Discovery() {
+	go func() {
+		ctx := context.Background()
+		
+		gs.logger.Info("phase2_discovery_initialization_started")
+
+		// Wait a moment for plugin system to fully initialize
+		time.Sleep(2 * time.Second)
+
+		// Discover and analyze all registered plugins
+		plugins := gs.pluginIntegration.GetPluginManager().GetPlugins()
+		for _, pluginName := range plugins {
+			// Perform comprehensive plugin discovery
+			result, err := gs.discoveryEngine.DiscoverPlugin(ctx, pluginName)
+			if err != nil {
+				gs.logger.Warn("plugin_discovery_failed",
+					"plugin", pluginName,
+					"error", err.Error())
+				continue
+			}
+
+			gs.logger.Info("plugin_discovery_completed",
+				"plugin", pluginName,
+				"capabilities", len(result.Capabilities),
+				"dependencies", len(result.Dependencies),
+				"conflicts", len(result.Conflicts),
+				"recommendations", len(result.Recommendations))
+
+			// Increment discovery metrics
+			gs.metrics.Inc("phase2_plugin_discoveries_total")
+			gs.metrics.Set("plugin_capabilities_discovered", float64(len(result.Capabilities)))
+		}
+
+		// Aggregate capabilities across all plugins
+		err := gs.aggregationEngine.AggregateCapabilities(ctx)
+		if err != nil {
+			gs.logger.Error("capability_aggregation_failed", "error", err.Error())
+		} else {
+			gs.logger.Info("capability_aggregation_completed")
+			gs.metrics.Inc("phase2_aggregations_total")
+		}
+
+		// Validate all discovered capabilities
+		totalValidations := 0
+		validationsPassed := 0
+		for _, pluginName := range plugins {
+			if result, exists := gs.discoveryEngine.GetDiscoveryResult(pluginName); exists {
+				for _, capability := range result.Capabilities {
+					validation, err := gs.validationEngine.ValidateCapability(ctx, pluginName, capability.CapabilityName)
+					if err != nil {
+						gs.logger.Warn("capability_validation_failed",
+							"plugin", pluginName,
+							"capability", capability.CapabilityName,
+							"error", err.Error())
+						continue
+					}
+
+					totalValidations++
+					if validation.Status == capabilities.StatusPassed {
+						validationsPassed++
+					}
+
+					gs.logger.Debug("capability_validated",
+						"plugin", pluginName,
+						"capability", capability.CapabilityName,
+						"status", validation.Status,
+						"score", validation.Score,
+						"issues", len(validation.Issues))
+				}
+			}
+		}
+
+		gs.logger.Info("phase2_discovery_initialization_completed",
+			"plugins_discovered", len(plugins),
+			"total_validations", totalValidations,
+			"validations_passed", validationsPassed,
+			"success_rate", float64(validationsPassed)/float64(totalValidations)*100)
+
+		gs.metrics.Set("phase2_discovery_success_rate", float64(validationsPassed)/float64(totalValidations))
+		gs.metrics.Inc("phase2_initialization_completed_total")
+	}()
 }
