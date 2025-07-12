@@ -1,0 +1,37 @@
+[Unit]
+Description=MCpeg Gateway - Development Mode
+Documentation=https://github.com/osakka/mcpeg
+After=network.target
+
+[Service]
+Type=simple
+User=mcpeg
+Group=mcpeg
+WorkingDirectory=/opt/mcpeg
+
+# Development service configuration
+ExecStart=/opt/mcpeg/build/mcpeg --dev --config /etc/mcpeg/gateway-dev.yaml
+ExecStop=/bin/kill -TERM $MAINPID
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStartSec=15
+TimeoutStopSec=15
+Restart=always
+RestartSec=2
+
+# Security settings (more relaxed for development)
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=false
+
+# Resource limits
+LimitNOFILE=65536
+
+# Environment
+Environment=MCPEG_ENV=development
+Environment=MCPEG_LOG_LEVEL=debug
+
+[Install]
+WantedBy=multi-user.target

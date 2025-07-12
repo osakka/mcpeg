@@ -86,7 +86,7 @@ debug/
 
 # Binary output
 /mcpeg
-mcpeg-*
+/mcpeg-*
 
 # Test artifacts
 *.test
@@ -117,6 +117,7 @@ secrets/
 credentials/
 config/secrets/*.yaml
 config/secrets/*.yml
+!config/secrets/.gitkeep
 
 # Runtime data
 data/
