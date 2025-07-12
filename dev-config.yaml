@@ -3,6 +3,10 @@ server:
   port: 8080
   tls:
     enabled: false
+  
+  # Admin API authentication (disabled for dev)
+  admin_api_key: ""
+  admin_api_header: "X-Admin-API-Key"
 
 development:
   enabled: true

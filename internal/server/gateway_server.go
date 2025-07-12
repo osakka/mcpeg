@@ -79,6 +79,10 @@ type ServerConfig struct {
 	EnableHealthEndpoints  bool `yaml:"enable_health_endpoints"`
 	EnableMetricsEndpoint  bool `yaml:"enable_metrics_endpoint"`
 	EnableAdminEndpoints   bool `yaml:"enable_admin_endpoints"`
+	
+	// Admin API authentication
+	AdminAPIKey     string `yaml:"admin_api_key"`
+	AdminAPIHeader  string `yaml:"admin_api_header"`
 }
 
 // NewGatewayServer creates a new gateway server
@@ -197,6 +201,12 @@ func (gs *GatewayServer) setupManagementRoutes(router *mux.Router) {
 	
 	if gs.config.EnableAdminEndpoints {
 		adminRouter := router.PathPrefix("/admin").Subrouter()
+		
+		// Apply authentication middleware to admin routes
+		if gs.config.AdminAPIKey != "" {
+			adminRouter.Use(gs.adminAuthMiddleware)
+		}
+		
 		gs.setupAdminRoutes(adminRouter)
 	}
 }
@@ -460,15 +470,15 @@ func (gs *GatewayServer) writeHTTPMetrics(w io.Writer) error {
 	if stat, exists := stats["http_request_duration_ms"]; exists {
 		// Convert milliseconds to seconds for Prometheus convention
 		fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_sum %f\n", stat.Sum/1000.0)
-		fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_count %f\n", stat.Count)
+		fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_count %d\n", stat.Count)
 		
 		// Histogram buckets (in seconds)
 		buckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0}
 		for _, bucket := range buckets {
 			// This is a simplified histogram - in production you'd track actual buckets
-			fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_bucket{le=\"%g\"} %f\n", bucket, stat.Count)
+			fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_bucket{le=\"%g\"} %d\n", bucket, stat.Count)
 		}
-		fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_bucket{le=\"+Inf\"} %f\n", stat.Count)
+		fmt.Fprintf(w, "mcpeg_http_request_duration_seconds_bucket{le=\"+Inf\"} %d\n", stat.Count)
 	}
 
 	// HTTP response size
@@ -477,7 +487,7 @@ func (gs *GatewayServer) writeHTTPMetrics(w io.Writer) error {
 	
 	if stat, exists := stats["http_response_size_bytes"]; exists {
 		fmt.Fprintf(w, "mcpeg_http_response_size_bytes_sum %f\n", stat.Sum)
-		fmt.Fprintf(w, "mcpeg_http_response_size_bytes_count %f\n", stat.Count)
+		fmt.Fprintf(w, "mcpeg_http_response_size_bytes_count %d\n", stat.Count)
 	}
 
 	// Active connections
@@ -535,7 +545,7 @@ func (gs *GatewayServer) writeServiceMetrics(w io.Writer) error {
 	
 	if stat, exists := stats["service_health_check_duration_ms"]; exists {
 		fmt.Fprintf(w, "mcpeg_service_health_check_duration_seconds_sum %f\n", stat.Sum/1000.0)
-		fmt.Fprintf(w, "mcpeg_service_health_check_duration_seconds_count %f\n", stat.Count)
+		fmt.Fprintf(w, "mcpeg_service_health_check_duration_seconds_count %d\n", stat.Count)
 	}
 
 	// Service health check success rate
@@ -583,7 +593,7 @@ func (gs *GatewayServer) writeMCPRouterMetrics(w io.Writer) error {
 	
 	if stat, exists := stats["mcp_request_duration_ms"]; exists {
 		fmt.Fprintf(w, "mcpeg_mcp_request_duration_seconds_sum %f\n", stat.Sum/1000.0)
-		fmt.Fprintf(w, "mcpeg_mcp_request_duration_seconds_count %f\n", stat.Count)
+		fmt.Fprintf(w, "mcpeg_mcp_request_duration_seconds_count %d\n", stat.Count)
 	}
 
 	// MCP validation errors
@@ -1281,6 +1291,10 @@ func defaultServerConfig() ServerConfig {
 		EnableHealthEndpoints: true,
 		EnableMetricsEndpoint: true,
 		EnableAdminEndpoints:  true,
+		
+		// Admin API authentication (empty by default for backward compatibility)
+		AdminAPIKey:    "", // Must be set explicitly for security
+		AdminAPIHeader: "X-Admin-API-Key",
 	}
 }
 
@@ -2070,4 +2084,63 @@ func (gs *GatewayServer) handleGetPluginCapabilities(w http.ResponseWriter, r *h
 	
 	gs.metrics.Inc("admin_api_plugin_capabilities_requests_total")
 	gs.writeJSONResponse(w, capabilities)
+}
+
+// adminAuthMiddleware provides authentication for admin API endpoints
+func (gs *GatewayServer) adminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get API key header (default to "X-Admin-API-Key" if not configured)
+		headerName := gs.config.AdminAPIHeader
+		if headerName == "" {
+			headerName = "X-Admin-API-Key"
+		}
+		
+		// Extract API key from request
+		providedKey := r.Header.Get(headerName)
+		if providedKey == "" {
+			gs.logger.Warn("admin_auth_missing_key",
+				"remote_addr", r.RemoteAddr,
+				"path", r.URL.Path,
+				"user_agent", r.Header.Get("User-Agent"))
+			
+			gs.metrics.Inc("admin_api_auth_failures_total", "reason", "missing_key")
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			gs.writeJSONResponse(w, map[string]interface{}{
+				"error": "authentication_required",
+				"message": fmt.Sprintf("Admin API key required in %s header", headerName),
+			})
+			return
+		}
+		
+		// Validate API key
+		if providedKey != gs.config.AdminAPIKey {
+			gs.logger.Warn("admin_auth_invalid_key",
+				"remote_addr", r.RemoteAddr,
+				"path", r.URL.Path,
+				"user_agent", r.Header.Get("User-Agent"),
+				"provided_key_length", len(providedKey))
+			
+			gs.metrics.Inc("admin_api_auth_failures_total", "reason", "invalid_key")
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			gs.writeJSONResponse(w, map[string]interface{}{
+				"error": "authentication_failed",
+				"message": "Invalid admin API key",
+			})
+			return
+		}
+		
+		// Authentication successful
+		gs.logger.Debug("admin_auth_success",
+			"remote_addr", r.RemoteAddr,
+			"path", r.URL.Path)
+		
+		gs.metrics.Inc("admin_api_auth_success_total")
+		
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
 }

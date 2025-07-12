@@ -46,6 +46,10 @@ server:
     enabled: true
     endpoint: "/health"
     detailed: false
+  
+  # Admin API authentication
+  admin_api_key: "${MCPEG_ADMIN_API_KEY}"
+  admin_api_header: "X-Admin-API-Key"
 
 logging:
   level: "info"
