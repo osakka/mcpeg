@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/osakka/mcpeg/internal/registry"
+	"github.com/osakka/mcpeg/pkg/paths"
 )
 
 // MemoryService provides persistent key-value storage across sessions
@@ -40,8 +41,9 @@ func (ms *MemoryService) Initialize(ctx context.Context, config PluginConfig) er
 		return err
 	}
 	
-	// Set up data file path
-	dataDir := "./data"
+	// Set up data file path using centralized path configuration
+	pathConfig := paths.DefaultPaths()
+	dataDir := pathConfig.GetDataDir()
 	if configDataDir, ok := config.Config["data_dir"].(string); ok {
 		dataDir = configDataDir
 	}

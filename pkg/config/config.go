@@ -345,21 +345,7 @@ func (l *Loader) SaveToFile(filePath string, config interface{}) error {
 	return nil
 }
 
-// GetDefaultConfigPath returns the default configuration file path based on environment
-func GetDefaultConfigPath() string {
-	// Check for explicit config file environment variable
-	if path := os.Getenv("MCPEG_CONFIG_FILE"); path != "" {
-		return path
-	}
-
-	// Check for development vs production environment
-	if os.Getenv("MCPEG_ENV") == "development" {
-		return "config/development.yaml"
-	}
-
-	// Production default
-	return "config/production.yaml"
-}
+// Note: GetDefaultConfigPath has been moved to pkg/paths/paths.go to centralize path management
 
 // GenerateExampleConfig generates an example configuration file
 func GenerateExampleConfig(filePath string, exampleConfig interface{}) error {

@@ -699,7 +699,7 @@ func defaultParserConfig() ParserConfig {
 		MaxFileSize:        10 * 1024 * 1024, // 10MB
 		AllowedSchemes:     []string{"http", "https"},
 		EnableCaching:      true,
-		CacheDir:           ".cache/openapi",
+		CacheDir:           "build/cache/openapi",
 		CacheExpiry:        24 * time.Hour,
 	}
 }

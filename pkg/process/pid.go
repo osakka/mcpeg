@@ -247,18 +247,7 @@ func (pm *PIDManager) createDelay(ms int) <-chan struct{} {
 	return ch
 }
 
-// GetDefaultPIDFile returns the default PID file path
-func GetDefaultPIDFile() string {
-	// Try /var/run first (standard location)
-	if _, err := os.Stat("/var/run"); err == nil {
-		if err := os.MkdirAll("/var/run/mcpeg", 0755); err == nil {
-			return "/var/run/mcpeg/mcpeg.pid"
-		}
-	}
-
-	// Fall back to current working directory
-	return "./mcpeg.pid"
-}
+// Note: GetDefaultPIDFile has been moved to pkg/config/paths.go to centralize path management
 
 // ValidatePIDFile validates that the PID file path is usable
 func ValidatePIDFile(pidFile string) error {

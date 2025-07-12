@@ -8,8 +8,8 @@ server:
   
   tls:
     enabled: true
-    cert_file: "/etc/ssl/certs/mcpeg.crt"
-    key_file: "/etc/ssl/private/mcpeg.key"
+    cert_file: "/etc/ssl/certs/server.pem"
+    key_file: "/etc/ssl/private/server.key"
     min_version: "1.2"
     ciphers:
       - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"

@@ -256,10 +256,11 @@ func ValidateDaemonConfig(config DaemonConfig) error {
 }
 
 // GetDefaultDaemonConfig returns default daemon configuration
+// Note: PIDFile and LogFile should be set by caller using config.GetDefaultPIDFile() and config.GetDefaultLogFile()
 func GetDefaultDaemonConfig() DaemonConfig {
 	return DaemonConfig{
-		PIDFile:    GetDefaultPIDFile(),
-		LogFile:    GetDefaultLogFile(),
+		PIDFile:    "build/runtime/mcpeg.pid",
+		LogFile:    "build/logs/mcpeg.log",
 		WorkingDir: "",
 		User:       "",
 		Group:      "",
@@ -268,23 +269,7 @@ func GetDefaultDaemonConfig() DaemonConfig {
 	}
 }
 
-// GetDefaultLogFile returns the default log file path
-func GetDefaultLogFile() string {
-	// Try /var/log first (standard location)
-	if _, err := os.Stat("/var/log"); err == nil {
-		if err := os.MkdirAll("/var/log/mcpeg", 0755); err == nil {
-			return "/var/log/mcpeg/mcpeg.log"
-		}
-	}
-
-	// Fall back to current working directory
-	if err := os.MkdirAll("./logs", 0755); err == nil {
-		return "./logs/mcpeg.log"
-	}
-
-	// Final fallback
-	return "./mcpeg.log"
-}
+// Note: GetDefaultLogFile has been moved to pkg/config/paths.go to centralize path management
 
 // SetupSignalHandlers sets up signal handlers for daemon mode
 func (dm *DaemonManager) SetupSignalHandlers(pidManager *PIDManager) {
