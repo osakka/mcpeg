@@ -23,7 +23,11 @@
 - **YAML-Based Configuration** - Advanced configuration system with environment variable overrides
 - **API-First Development** - Generated code from official MCP specifications
 - **Production Observability** - Prometheus metrics, structured logging, health checks, and debugging endpoints
-- **Plugin System** - Built-in Memory, Git, and Editor services with extensible plugin architecture
+- **Enterprise Plugin System** - Complete MCP Plugin Integration with 20 specialized endpoints
+  - **Advanced Discovery** - Intelligent plugin discovery with capability analysis and dependency resolution
+  - **Inter-Plugin Communication** - Message passing, event bus, and service discovery between plugins
+  - **Hot Reloading** - Zero-downtime plugin updates with comprehensive operation tracking and rollback
+  - **Built-in Services** - Memory, Git, and Editor services with extensible plugin architecture
 - **Daemon Process Management** - Full daemon support with PID files, signal handling, and process control
 - **System Integration** - Systemd service files, management scripts, and automated installation
 
