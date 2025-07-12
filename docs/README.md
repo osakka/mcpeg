@@ -23,6 +23,11 @@ This directory contains all project documentation.
   - High-level design documents
   - Component interaction diagrams
   - Deployment architecture
+  
+- `/testing/` - Testing infrastructure documentation
+  - MCP testing methodology
+  - Test client documentation
+  - Integration testing guides
 
 
 ## Documentation Principles

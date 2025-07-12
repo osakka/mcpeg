@@ -186,6 +186,29 @@ The implementation uses a comprehensive type system with:
 - **Comprehensive Logging**: Detailed logging for troubleshooting
 - **Retry Logic**: Configurable retry policies for transient failures
 
+### Thread Safety (v0.5.1-stable Update)
+
+**Issue Identified**: Concurrent map writes in AnalysisEngine caused panic under load:
+```
+fatal error: concurrent map writes
+```
+
+**Solution Implemented**: Added `sync.RWMutex` to AnalysisEngine struct:
+```go
+type AnalysisEngine struct {
+    // ... existing fields
+    mutex sync.RWMutex  // Added for thread safety
+}
+```
+
+**Protected Operations**:
+- `AnalyzeCapability()`: Write operations protected with `mutex.Lock()`
+- `GetAnalysis()`: Read operations protected with `mutex.RLock()`
+- `GetAnalysesByCategory()`: Returns defensive copies to prevent external modification
+- `GetAllAnalyses()`: Returns defensive copies of all analysis data
+
+**Validation**: All map access patterns now thread-safe with zero race conditions under concurrent load.
+
 ## Consequences
 
 ### Positive
@@ -210,6 +233,8 @@ The implementation uses a comprehensive type system with:
 ## Status
 
 **Implemented**: Phase 2 Advanced Plugin Discovery and Intelligence is complete and integrated into the MCpeg gateway server.
+
+**Critical Update (v0.5.1-stable)**: Fixed concurrent map writes panic in AnalysisEngine with proper RWMutex synchronization. All capability analysis operations are now thread-safe with zero race conditions.
 
 ## Related
 
