@@ -44,13 +44,13 @@ func (t *TaskFunc) Name() string {
 
 // PoolMetrics tracks worker pool statistics
 type PoolMetrics struct {
-	ActiveWorkers   int32
-	QueuedTasks     int32
-	CompletedTasks  uint64
-	FailedTasks     uint64
-	TotalDuration   int64 // nanoseconds
-	MaxDuration     int64 // nanoseconds
-	LastTaskTime    time.Time
+	ActiveWorkers  int32
+	QueuedTasks    int32
+	CompletedTasks uint64
+	FailedTasks    uint64
+	TotalDuration  int64 // nanoseconds
+	MaxDuration    int64 // nanoseconds
+	LastTaskTime   time.Time
 }
 
 // WorkerPool manages concurrent task execution
@@ -95,7 +95,7 @@ func (wp *WorkerPool) Submit(ctx context.Context, task Task) error {
 		// Successfully acquired semaphore
 		atomic.AddInt32(&wp.metrics.ActiveWorkers, 1)
 		wp.wg.Add(1)
-		
+
 		go wp.runWorker(ctx, task)
 		return nil
 	default:
@@ -123,7 +123,7 @@ func (wp *WorkerPool) runWorker(ctx context.Context, initialTask Task) {
 		<-wp.sem // Release semaphore
 		atomic.AddInt32(&wp.metrics.ActiveWorkers, -1)
 		wp.wg.Done()
-		
+
 		if r := recover(); r != nil {
 			wp.logger.Error("worker_panic",
 				"panic", r,
@@ -155,16 +155,16 @@ func (wp *WorkerPool) executeTask(ctx context.Context, task Task) {
 
 	// Create task-specific logger
 	taskLogger := wp.logger.WithComponent(fmt.Sprintf("task.%s", task.Name()))
-	
+
 	taskLogger.Debug("task_started",
 		"active_workers", atomic.LoadInt32(&wp.metrics.ActiveWorkers))
 
 	// Execute task
 	err := task.Execute(taskCtx)
-	
+
 	duration := time.Since(start)
 	atomic.AddInt64(&wp.metrics.TotalDuration, duration.Nanoseconds())
-	
+
 	// Update max duration
 	for {
 		current := atomic.LoadInt64(&wp.metrics.MaxDuration)
@@ -191,7 +191,7 @@ func (wp *WorkerPool) executeTask(ctx context.Context, task Task) {
 func (wp *WorkerPool) GetMetrics() PoolMetrics {
 	completed := atomic.LoadUint64(&wp.metrics.CompletedTasks)
 	totalDuration := atomic.LoadInt64(&wp.metrics.TotalDuration)
-	
+
 	avgDuration := int64(0)
 	if completed > 0 {
 		avgDuration = totalDuration / int64(completed)

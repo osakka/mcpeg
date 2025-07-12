@@ -11,19 +11,23 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/osakka/mcpeg/internal/mcp/types"
 	"github.com/osakka/mcpeg/internal/registry"
-	"github.com/osakka/mcpeg/pkg/logging"
-	"github.com/osakka/mcpeg/pkg/metrics"
-	"github.com/osakka/mcpeg/pkg/validation"
 	"github.com/osakka/mcpeg/pkg/errors"
+	"github.com/osakka/mcpeg/pkg/logging"
+	mcpTypes "github.com/osakka/mcpeg/pkg/mcp"
+	"github.com/osakka/mcpeg/pkg/metrics"
+	"github.com/osakka/mcpeg/pkg/rbac"
+	"github.com/osakka/mcpeg/pkg/validation"
 )
 
 // MCPRouter handles routing of MCP requests to appropriate service adapters
 type MCPRouter struct {
-	registry   *registry.ServiceRegistry
-	logger     logging.Logger
-	metrics    metrics.Metrics
-	validator  *validation.Validator
-	config     RouterConfig
+	registry      *registry.ServiceRegistry
+	pluginHandler mcpTypes.PluginHandler
+	rbacEngine    *rbac.Engine
+	logger        logging.Logger
+	metrics       metrics.Metrics
+	validator     *validation.Validator
+	config        RouterConfig
 }
 
 // RouterConfig configures the MCP router
@@ -32,23 +36,27 @@ type RouterConfig struct {
 	DefaultTimeout      time.Duration `yaml:"default_timeout"`
 	MaxRequestSize      int64         `yaml:"max_request_size"`
 	EnableMethodRouting bool          `yaml:"enable_method_routing"`
-	
+
 	// Load balancing
-	LoadBalancingEnabled bool   `yaml:"load_balancing_enabled"`
+	LoadBalancingEnabled  bool   `yaml:"load_balancing_enabled"`
 	LoadBalancingStrategy string `yaml:"load_balancing_strategy"`
-	
+
 	// Validation
 	ValidateRequests  bool `yaml:"validate_requests"`
 	ValidateResponses bool `yaml:"validate_responses"`
-	
+
 	// Error handling
-	RetryEnabled      bool          `yaml:"retry_enabled"`
-	RetryAttempts     int           `yaml:"retry_attempts"`
-	RetryBackoff      time.Duration `yaml:"retry_backoff"`
-	
+	RetryEnabled  bool          `yaml:"retry_enabled"`
+	RetryAttempts int           `yaml:"retry_attempts"`
+	RetryBackoff  time.Duration `yaml:"retry_backoff"`
+
 	// Monitoring
 	EnableMetrics bool `yaml:"enable_metrics"`
 	EnableTracing bool `yaml:"enable_tracing"`
+
+	// Plugin integration
+	EnablePluginRouting   bool `yaml:"enable_plugin_routing"`
+	RequireAuthentication bool `yaml:"require_authentication"`
 }
 
 // RequestContext provides context for request routing
@@ -63,21 +71,28 @@ type RequestContext struct {
 	Method       string
 	ServiceType  string
 	Preferences  map[string]interface{}
+	Capabilities *rbac.ProcessedCapabilities
+	AuthToken    string
+	IsPluginCall bool
 }
 
 // NewMCPRouter creates a new MCP router
 func NewMCPRouter(
 	registry *registry.ServiceRegistry,
+	pluginHandler mcpTypes.PluginHandler,
+	rbacEngine *rbac.Engine,
 	logger logging.Logger,
 	metrics metrics.Metrics,
 	validator *validation.Validator,
 ) *MCPRouter {
 	return &MCPRouter{
-		registry:  registry,
-		logger:    logger.WithComponent("mcp_router"),
-		metrics:   metrics,
-		validator: validator,
-		config:    defaultRouterConfig(),
+		registry:      registry,
+		pluginHandler: pluginHandler,
+		rbacEngine:    rbacEngine,
+		logger:        logger.WithComponent("mcp_router"),
+		metrics:       metrics,
+		validator:     validator,
+		config:        defaultRouterConfig(),
 	}
 }
 
@@ -85,7 +100,7 @@ func NewMCPRouter(
 func (mr *MCPRouter) SetupRoutes(router *mux.Router) {
 	// MCP JSON-RPC endpoint
 	router.HandleFunc("/mcp", mr.handleMCPRequest).Methods("POST")
-	
+
 	// MCP method-specific endpoints
 	if mr.config.EnableMethodRouting {
 		router.HandleFunc("/mcp/tools/list", mr.handleToolsList).Methods("POST")
@@ -105,39 +120,56 @@ func (mr *MCPRouter) SetupRoutes(router *mux.Router) {
 // handleMCPRequest handles generic MCP JSON-RPC requests
 func (mr *MCPRouter) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	
+
 	// Create request context
 	reqCtx := mr.createRequestContext(r)
-	
+
 	mr.logger.Info("mcp_request_started",
 		"request_id", reqCtx.RequestID,
 		"method", reqCtx.Method,
 		"client_ip", r.RemoteAddr)
-	
+
 	// Parse JSON-RPC request
-	var mcpReq types.Request
-	if err := mr.parseRequest(r, &mcpReq); err != nil {
-		mr.writeErrorResponse(w, reqCtx, types.ErrorCodeParseError, "Invalid JSON-RPC request", err)
+	var mcpReq mcpTypes.JSONRPCRequest
+	if err := mr.parseJSONRPCRequest(r, &mcpReq); err != nil {
+		mr.writeErrorResponse(w, reqCtx, mcpTypes.ErrorCodeParseError, "Invalid JSON-RPC request", err)
 		return
 	}
-	
+
 	reqCtx.Method = mcpReq.Method
-	
+
+	// Authenticate request if authentication is enabled
+	if mr.config.RequireAuthentication && mr.rbacEngine != nil {
+		if err := mr.authenticateRequest(r, reqCtx); err != nil {
+			mr.writeErrorResponse(w, reqCtx, mcpTypes.ErrorCodeUnauthorized, "Authentication failed", err)
+			return
+		}
+	} else {
+		// Set default capabilities for unauthenticated requests
+		reqCtx.Capabilities = &rbac.ProcessedCapabilities{
+			UserID: "anonymous",
+			Roles:  []string{"readonly"},
+			Plugins: map[string]rbac.PluginPermission{
+				"*": {CanRead: true, CanExecute: true},
+			},
+		}
+	}
+
 	// Validate request
 	if mr.config.ValidateRequests {
-		if err := mr.validateRequest(&mcpReq); err != nil {
-			mr.writeErrorResponse(w, reqCtx, types.ErrorCodeInvalidParams, "Request validation failed", err)
+		if err := mr.validateJSONRPCRequest(&mcpReq); err != nil {
+			mr.writeErrorResponse(w, reqCtx, mcpTypes.ErrorCodeInvalidParams, "Request validation failed", err)
 			return
 		}
 	}
-	
+
 	// Route request to appropriate service
-	result, err := mr.routeRequest(r.Context(), reqCtx, &mcpReq)
+	result, err := mr.routeJSONRPCRequest(r.Context(), reqCtx, &mcpReq)
 	if err != nil {
 		mr.handleRoutingError(w, reqCtx, err)
 		return
 	}
-	
+
 	// Validate response
 	if mr.config.ValidateResponses {
 		if err := mr.validateResponse(result); err != nil {
@@ -146,20 +178,22 @@ func (mr *MCPRouter) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 				"error", err)
 		}
 	}
-	
+
 	// Write successful response
 	response := types.Response{
 		JSONRPC: "2.0",
 		Result:  result,
 		ID:      mcpReq.ID,
 	}
-	
-	mr.writeJSONResponse(w, response)
-	
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+
 	// Record metrics
 	duration := time.Since(start)
 	mr.recordRequestMetrics(reqCtx, duration, nil)
-	
+
 	mr.logger.Info("mcp_request_completed",
 		"request_id", reqCtx.RequestID,
 		"method", reqCtx.Method,
@@ -169,65 +203,72 @@ func (mr *MCPRouter) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 
 // routeRequest routes an MCP request to the appropriate service
 func (mr *MCPRouter) routeRequest(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, error) {
+	// Check if this is a plugin request first
+	if mr.config.EnablePluginRouting && mr.pluginHandler != nil {
+		if result, handled, err := mr.tryPluginRouting(ctx, reqCtx, mcpReq); handled {
+			return result, err
+		}
+	}
+
 	// Determine target service type based on method
 	serviceType := mr.determineServiceType(mcpReq.Method)
 	if serviceType == "" {
 		return nil, errors.ValidationError("mcp_router", "route_request",
 			fmt.Sprintf("Unknown MCP method: %s", mcpReq.Method), map[string]interface{}{
-				"method": mcpReq.Method,
+				"method":     mcpReq.Method,
 				"request_id": reqCtx.RequestID,
 			})
 	}
-	
+
 	reqCtx.ServiceType = serviceType
-	
+
 	// Create selection criteria
 	criteria := registry.SelectionCriteria{
 		LoadBalancing: mr.config.LoadBalancingStrategy,
 		Metadata:      reqCtx.Preferences,
 	}
-	
+
 	// Select service instance
 	service, err := mr.registry.SelectService(serviceType, criteria)
 	if err != nil {
 		return nil, errors.UnavailableError("mcp_router", "route_request", err, map[string]interface{}{
 			"service_type": serviceType,
-			"method": mcpReq.Method,
-			"request_id": reqCtx.RequestID,
+			"method":       mcpReq.Method,
+			"request_id":   reqCtx.RequestID,
 		})
 	}
-	
+
 	mr.logger.Debug("service_selected_for_request",
 		"request_id", reqCtx.RequestID,
 		"service_id", service.ID,
 		"service_type", serviceType,
 		"method", mcpReq.Method)
-	
+
 	// Execute request with retry logic
 	var result interface{}
 	var lastErr error
-	
+
 	attempts := 1
 	if mr.config.RetryEnabled {
 		attempts = mr.config.RetryAttempts
 	}
-	
+
 	for attempt := 1; attempt <= attempts; attempt++ {
 		startTime := time.Now()
-		
+
 		result, lastErr = mr.executeRequest(ctx, service, mcpReq)
-		
+
 		duration := time.Since(startTime)
-		
+
 		if lastErr == nil {
 			// Success - record metrics and return
 			mr.registry.GetLoadBalancer().RecordSuccess(service, duration)
 			return result, nil
 		}
-		
+
 		// Record failure
 		mr.registry.GetLoadBalancer().RecordFailure(service, lastErr)
-		
+
 		mr.logger.Warn("service_request_failed",
 			"request_id", reqCtx.RequestID,
 			"service_id", service.ID,
@@ -235,12 +276,12 @@ func (mr *MCPRouter) routeRequest(ctx context.Context, reqCtx *RequestContext, m
 			"max_attempts", attempts,
 			"error", lastErr,
 			"duration", duration)
-		
+
 		// If not the last attempt, wait before retrying
 		if attempt < attempts {
 			backoff := mr.config.RetryBackoff * time.Duration(attempt)
 			time.Sleep(backoff)
-			
+
 			// Try to select a different service instance for retry
 			if newService, err := mr.registry.SelectService(serviceType, criteria); err == nil {
 				service = newService
@@ -251,7 +292,7 @@ func (mr *MCPRouter) routeRequest(ctx context.Context, reqCtx *RequestContext, m
 			}
 		}
 	}
-	
+
 	return nil, lastErr
 }
 
@@ -261,47 +302,47 @@ func (mr *MCPRouter) executeRequest(ctx context.Context, service *registry.Regis
 	client := &http.Client{
 		Timeout: mr.config.DefaultTimeout,
 	}
-	
+
 	// Prepare request body
 	reqBody, err := json.Marshal(mcpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	
+
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", service.Endpoint, strings.NewReader(string(reqBody)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
-	
+
 	// Set headers
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("User-Agent", "MCPEG/1.0")
-	
+
 	// Execute request
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	// Check HTTP status
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
 	}
-	
+
 	// Parse response
 	var mcpResp types.Response
 	if err := json.NewDecoder(resp.Body).Decode(&mcpResp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
-	
+
 	// Check for JSON-RPC error
 	if mcpResp.Error != nil {
 		return nil, fmt.Errorf("MCP error %d: %s", mcpResp.Error.Code, mcpResp.Error.Message)
 	}
-	
+
 	return mcpResp.Result, nil
 }
 
@@ -309,29 +350,29 @@ func (mr *MCPRouter) executeRequest(ctx context.Context, service *registry.Regis
 func (mr *MCPRouter) determineServiceType(method string) string {
 	// Map MCP methods to service types
 	methodServiceMap := map[string]string{
-		"tools/list":           "tool_provider",
-		"tools/call":           "tool_provider",
-		"resources/list":       "resource_provider",
-		"resources/read":       "resource_provider",
-		"resources/subscribe":  "resource_provider",
-		"prompts/list":         "prompt_provider",
-		"prompts/get":          "prompt_provider",
-		"completion/complete":  "completion_provider",
-		"logging/setLevel":     "logging_provider",
+		"tools/list":             "tool_provider",
+		"tools/call":             "tool_provider",
+		"resources/list":         "resource_provider",
+		"resources/read":         "resource_provider",
+		"resources/subscribe":    "resource_provider",
+		"prompts/list":           "prompt_provider",
+		"prompts/get":            "prompt_provider",
+		"completion/complete":    "completion_provider",
+		"logging/setLevel":       "logging_provider",
 		"sampling/createMessage": "sampling_provider",
-		"roots/list":           "root_provider",
+		"roots/list":             "root_provider",
 	}
-	
+
 	if serviceType, exists := methodServiceMap[method]; exists {
 		return serviceType
 	}
-	
+
 	// Try to extract service type from method prefix
 	parts := strings.Split(method, "/")
 	if len(parts) >= 2 {
 		return parts[0] + "_provider"
 	}
-	
+
 	// Default to generic adapter
 	return "generic_adapter"
 }
@@ -390,7 +431,7 @@ func (mr *MCPRouter) handleMethodRequest(w http.ResponseWriter, r *http.Request,
 		mr.writeErrorResponse(w, nil, types.ErrorCodeParseError, "Invalid request body", err)
 		return
 	}
-	
+
 	// Create MCP request and route through standard handler
 	mr.handleMCPRequest(w, r)
 }
@@ -414,7 +455,7 @@ func (mr *MCPRouter) parseRequest(r *http.Request, mcpReq *types.Request) error 
 	if r.ContentLength > mr.config.MaxRequestSize {
 		return fmt.Errorf("request too large: %d bytes", r.ContentLength)
 	}
-	
+
 	return json.NewDecoder(r.Body).Decode(mcpReq)
 }
 
@@ -422,17 +463,17 @@ func (mr *MCPRouter) validateRequest(mcpReq *types.Request) error {
 	if mcpReq.JSONRPC != "2.0" {
 		return fmt.Errorf("invalid JSON-RPC version: %s", mcpReq.JSONRPC)
 	}
-	
+
 	if mcpReq.Method == "" {
 		return fmt.Errorf("missing method")
 	}
-	
+
 	return nil
 }
 
 func (mr *MCPRouter) validateResponse(result interface{}) error {
 	mr.logger.Debug("mcp_response_validation_started", "result_type", fmt.Sprintf("%T", result))
-	
+
 	if result == nil {
 		return fmt.Errorf("response result cannot be nil")
 	}
@@ -465,7 +506,7 @@ func (mr *MCPRouter) validateResponse(result interface{}) error {
 		// Generic validation for unknown response types
 		return mr.validateGenericResponse(v)
 	default:
-		mr.logger.Warn("mcp_response_validation_unknown_type", 
+		mr.logger.Warn("mcp_response_validation_unknown_type",
 			"type", fmt.Sprintf("%T", result))
 		// Allow unknown types but log warning
 		return nil
@@ -765,7 +806,7 @@ func (mr *MCPRouter) validateResourceContent(content *types.ResourceContent, con
 	// Validate that content has either text or blob data
 	hasText := content.Text != ""
 	hasBlob := content.Blob != ""
-	
+
 	if !hasText && !hasBlob {
 		return fmt.Errorf("%s: content must have either text or blob data", context)
 	}
@@ -863,7 +904,7 @@ func (mr *MCPRouter) validatePromptMessage(message *types.PromptMessage, context
 	if message.Content.Type == "" {
 		return fmt.Errorf("%s: message content type cannot be empty", context)
 	}
-	
+
 	if message.Content.Text == "" {
 		return fmt.Errorf("%s: message content text cannot be empty", context)
 	}
@@ -948,7 +989,7 @@ func isValidSemanticVersion(version string) bool {
 	if len(parts) != 3 {
 		return false
 	}
-	
+
 	for _, part := range parts {
 		if part == "" {
 			return false
@@ -960,7 +1001,7 @@ func isValidSemanticVersion(version string) bool {
 			}
 		}
 	}
-	
+
 	return true
 }
 
@@ -974,16 +1015,16 @@ func isValidToolName(name string) bool {
 	if name == "" {
 		return false
 	}
-	
+
 	for _, char := range name {
-		if !((char >= 'a' && char <= 'z') || 
-			 (char >= 'A' && char <= 'Z') || 
-			 (char >= '0' && char <= '9') || 
-			 char == '_' || char == '-') {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '_' || char == '-') {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -1026,7 +1067,7 @@ func (mr *MCPRouter) writeErrorResponse(w http.ResponseWriter, reqCtx *RequestCo
 		},
 		ID: nil,
 	}
-	
+
 	if reqCtx != nil {
 		mr.recordRequestMetrics(reqCtx, time.Since(reqCtx.StartTime), err)
 		mr.logger.Error("mcp_request_failed",
@@ -1035,7 +1076,7 @@ func (mr *MCPRouter) writeErrorResponse(w http.ResponseWriter, reqCtx *RequestCo
 			"error_message", message,
 			"error", err)
 	}
-	
+
 	mr.writeJSONResponse(w, errorResp)
 }
 
@@ -1048,7 +1089,7 @@ func (mr *MCPRouter) handleRoutingError(w http.ResponseWriter, reqCtx *RequestCo
 	// Determine appropriate error code based on error type
 	var code int
 	var message string
-	
+
 	switch {
 	case errors.IsValidationError(err):
 		code = types.ErrorCodeInvalidParams
@@ -1063,20 +1104,238 @@ func (mr *MCPRouter) handleRoutingError(w http.ResponseWriter, reqCtx *RequestCo
 		code = types.ErrorCodeInternalError
 		message = "Internal error"
 	}
-	
+
 	mr.writeErrorResponse(w, reqCtx, code, message, err)
+}
+
+// authenticateRequest handles JWT authentication and RBAC processing
+func (mr *MCPRouter) authenticateRequest(r *http.Request, reqCtx *RequestContext) error {
+	// Extract JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return fmt.Errorf("missing authorization header")
+	}
+
+	// Check Bearer token format
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return fmt.Errorf("invalid authorization header format")
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	reqCtx.AuthToken = token
+
+	// Process token through RBAC engine
+	capabilities, err := mr.rbacEngine.ProcessToken(token)
+	if err != nil {
+		mr.logger.Warn("rbac_token_processing_failed",
+			"request_id", reqCtx.RequestID,
+			"error", err)
+		return fmt.Errorf("token processing failed: %w", err)
+	}
+
+	// Store capabilities in request context
+	reqCtx.Capabilities = capabilities
+	reqCtx.UserID = capabilities.UserID
+	reqCtx.SessionID = capabilities.SessionID
+
+	mr.logger.Debug("request_authenticated",
+		"request_id", reqCtx.RequestID,
+		"user_id", capabilities.UserID,
+		"roles", capabilities.Roles,
+		"plugin_count", len(capabilities.Plugins))
+
+	return nil
+}
+
+// tryPluginRouting attempts to route request through plugin system
+func (mr *MCPRouter) tryPluginRouting(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	switch mcpReq.Method {
+	case "tools/list":
+		return mr.handlePluginToolsList(ctx, reqCtx, mcpReq)
+	case "tools/call":
+		return mr.handlePluginToolsCall(ctx, reqCtx, mcpReq)
+	case "resources/list":
+		return mr.handlePluginResourcesList(ctx, reqCtx, mcpReq)
+	case "prompts/list":
+		return mr.handlePluginPromptsList(ctx, reqCtx, mcpReq)
+	default:
+		// Not a plugin-handled method
+		return nil, false, nil
+	}
+}
+
+// handlePluginToolsList handles tools/list through plugin system
+func (mr *MCPRouter) handlePluginToolsList(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	mr.logger.Debug("plugin_tools_list_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID)
+
+	// Get all available plugins for user
+	availablePlugins := mr.pluginHandler.ListAvailablePlugins(reqCtx.Capabilities)
+
+	// Aggregate tools from all accessible plugins
+	var allTools []mcpTypes.Tool
+	for _, pluginName := range availablePlugins {
+		tools, err := mr.pluginHandler.GetPluginTools(pluginName, reqCtx.Capabilities)
+		if err != nil {
+			mr.logger.Warn("failed_to_get_plugin_tools",
+				"plugin", pluginName,
+				"error", err)
+			continue
+		}
+		allTools = append(allTools, tools...)
+	}
+
+	mr.metrics.Inc("plugin_tools_list_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_tools_list_completed",
+		"request_id", reqCtx.RequestID,
+		"tool_count", len(allTools),
+		"plugin_count", len(availablePlugins))
+
+	return map[string]interface{}{
+		"tools": allTools,
+	}, true, nil
+}
+
+// handlePluginToolsCall handles tools/call through plugin system
+func (mr *MCPRouter) handlePluginToolsCall(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	// Parse tool call parameters
+	var params map[string]interface{}
+	if len(mcpReq.Params) > 0 {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return nil, true, fmt.Errorf("failed to parse tool call parameters: %w", err)
+		}
+	} else {
+		params = make(map[string]interface{})
+	}
+
+	toolName, ok := params["name"].(string)
+	if !ok {
+		return nil, true, fmt.Errorf("missing tool name")
+	}
+
+	// Extract plugin name from tool name (format: plugin.tool)
+	toolParts := strings.SplitN(toolName, ".", 2)
+	if len(toolParts) != 2 {
+		return nil, true, fmt.Errorf("invalid tool name format: %s", toolName)
+	}
+
+	pluginName := toolParts[0]
+	actualToolName := toolParts[1]
+
+	// Get tool arguments
+	arguments, _ := params["arguments"].(map[string]interface{})
+
+	mr.logger.Info("plugin_tool_call_started",
+		"request_id", reqCtx.RequestID,
+		"plugin", pluginName,
+		"tool", actualToolName,
+		"user_id", reqCtx.UserID)
+
+	// Execute plugin tool
+	result, err := mr.pluginHandler.InvokePlugin(ctx, pluginName, actualToolName, arguments, reqCtx.Capabilities)
+	if err != nil {
+		mr.logger.Error("plugin_tool_call_failed",
+			"request_id", reqCtx.RequestID,
+			"plugin", pluginName,
+			"tool", actualToolName,
+			"error", err)
+		return nil, true, err
+	}
+
+	mr.metrics.Inc("plugin_tool_calls", "plugin", pluginName, "tool", actualToolName)
+	mr.logger.Info("plugin_tool_call_completed",
+		"request_id", reqCtx.RequestID,
+		"plugin", pluginName,
+		"tool", actualToolName)
+
+	return result, true, nil
+}
+
+// handlePluginResourcesList handles resources/list through plugin system
+func (mr *MCPRouter) handlePluginResourcesList(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	mr.logger.Debug("plugin_resources_list_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID)
+
+	// Get all available plugins for user
+	availablePlugins := mr.pluginHandler.ListAvailablePlugins(reqCtx.Capabilities)
+
+	// Aggregate resources from all accessible plugins
+	var allResources []mcpTypes.Resource
+	for _, pluginName := range availablePlugins {
+		resources, err := mr.pluginHandler.GetPluginResources(pluginName, reqCtx.Capabilities)
+		if err != nil {
+			mr.logger.Warn("failed_to_get_plugin_resources",
+				"plugin", pluginName,
+				"error", err)
+			continue
+		}
+		allResources = append(allResources, resources...)
+	}
+
+	mr.metrics.Inc("plugin_resources_list_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_resources_list_completed",
+		"request_id", reqCtx.RequestID,
+		"resource_count", len(allResources),
+		"plugin_count", len(availablePlugins))
+
+	return map[string]interface{}{
+		"resources": allResources,
+	}, true, nil
+}
+
+// handlePluginPromptsList handles prompts/list through plugin system
+func (mr *MCPRouter) handlePluginPromptsList(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	mr.logger.Debug("plugin_prompts_list_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID)
+
+	// Get all available plugins for user
+	availablePlugins := mr.pluginHandler.ListAvailablePlugins(reqCtx.Capabilities)
+
+	// Aggregate prompts from all accessible plugins
+	var allPrompts []mcpTypes.Prompt
+	for _, pluginName := range availablePlugins {
+		prompts, err := mr.pluginHandler.GetPluginPrompts(pluginName, reqCtx.Capabilities)
+		if err != nil {
+			mr.logger.Warn("failed_to_get_plugin_prompts",
+				"plugin", pluginName,
+				"error", err)
+			continue
+		}
+		allPrompts = append(allPrompts, prompts...)
+	}
+
+	mr.metrics.Inc("plugin_prompts_list_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_prompts_list_completed",
+		"request_id", reqCtx.RequestID,
+		"prompt_count", len(allPrompts),
+		"plugin_count", len(availablePlugins))
+
+	return map[string]interface{}{
+		"prompts": allPrompts,
+	}, true, nil
 }
 
 func (mr *MCPRouter) recordRequestMetrics(reqCtx *RequestContext, duration time.Duration, err error) {
 	if !mr.config.EnableMetrics {
 		return
 	}
-	
+
 	labels := []string{
 		"method", reqCtx.Method,
 		"service_type", reqCtx.ServiceType,
 	}
-	
+
 	if err != nil {
 		labels = append(labels, "status", "error")
 		mr.metrics.Inc("mcp_requests_total", labels...)
@@ -1085,7 +1344,7 @@ func (mr *MCPRouter) recordRequestMetrics(reqCtx *RequestContext, duration time.
 		labels = append(labels, "status", "success")
 		mr.metrics.Inc("mcp_requests_total", labels...)
 	}
-	
+
 	mr.metrics.Observe("mcp_request_duration_seconds", duration.Seconds(), labels...)
 }
 
@@ -1107,5 +1366,122 @@ func defaultRouterConfig() RouterConfig {
 		RetryBackoff:          1 * time.Second,
 		EnableMetrics:         true,
 		EnableTracing:         true,
+		EnablePluginRouting:   true,
+		RequireAuthentication: false, // Can be enabled via config
 	}
+}
+
+// JSON-RPC specific parser
+func (mr *MCPRouter) parseJSONRPCRequest(r *http.Request, mcpReq *mcpTypes.JSONRPCRequest) error {
+	if r.Header.Get("Content-Type") != "application/json" {
+		return fmt.Errorf("invalid content type, expected application/json")
+	}
+
+	if r.ContentLength > mr.config.MaxRequestSize {
+		return fmt.Errorf("request too large: %d bytes", r.ContentLength)
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(mcpReq); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	if mcpReq.JSONRPC != "2.0" {
+		return fmt.Errorf("invalid JSON-RPC version: %s", mcpReq.JSONRPC)
+	}
+
+	if mcpReq.Method == "" {
+		return fmt.Errorf("missing method")
+	}
+
+	return nil
+}
+
+func (mr *MCPRouter) validateJSONRPCRequest(mcpReq *mcpTypes.JSONRPCRequest) error {
+	// Basic validation already done in parser
+	// Add any additional MCP-specific validation here
+	return nil
+}
+
+func (mr *MCPRouter) routeJSONRPCRequest(ctx context.Context, reqCtx *RequestContext, mcpReq *mcpTypes.JSONRPCRequest) (interface{}, error) {
+	// Check for plugin routing
+	if mr.config.EnablePluginRouting && mr.pluginHandler != nil {
+		// Convert JSONRPCRequest to legacy types.Request for existing plugin code
+		var params json.RawMessage
+		if mcpReq.Params != nil {
+			if paramsBytes, err := json.Marshal(mcpReq.Params); err == nil {
+				params = paramsBytes
+			}
+		}
+		legacyReq := &types.Request{
+			JSONRPC: mcpReq.JSONRPC,
+			ID:      mcpReq.ID,
+			Method:  mcpReq.Method,
+			Params:  params,
+		}
+		if result, handled, err := mr.tryPluginRouting(ctx, reqCtx, legacyReq); handled {
+			return result, err
+		}
+	}
+
+	// Fallback to service routing
+	serviceType := mr.determineServiceType(mcpReq.Method)
+	services := mr.registry.GetServicesByType(serviceType)
+
+	if len(services) == 0 {
+		return nil, fmt.Errorf("no services available for method: %s", mcpReq.Method)
+	}
+
+	// Use first available service for now
+	service := services[0]
+	return mr.forwardToService(ctx, service, mcpReq)
+}
+
+func (mr *MCPRouter) forwardToService(ctx context.Context, service *registry.RegisteredService, mcpReq *mcpTypes.JSONRPCRequest) (interface{}, error) {
+	// Marshal request
+	reqBody, err := json.Marshal(mcpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Create HTTP client
+	client := &http.Client{
+		Timeout: mr.config.DefaultTimeout,
+	}
+
+	// Create HTTP request
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", service.Endpoint, strings.NewReader(string(reqBody)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("User-Agent", "MCPEG/1.0")
+
+	// Execute request
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check HTTP status
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	// Parse response
+	var mcpResp mcpTypes.JSONRPCResponse
+	if err := json.NewDecoder(resp.Body).Decode(&mcpResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Check for JSON-RPC error
+	if mcpResp.Error != nil {
+		return nil, fmt.Errorf("MCP error %d: %s", mcpResp.Error.Code, mcpResp.Error.Message)
+	}
+
+	return mcpResp.Result, nil
 }

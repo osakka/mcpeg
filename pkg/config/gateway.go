@@ -11,19 +11,19 @@ import (
 type GatewayConfig struct {
 	// Server configuration
 	Server ServerConfig `yaml:"server"`
-	
+
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging"`
-	
+
 	// Metrics configuration
 	Metrics MetricsConfig `yaml:"metrics"`
-	
+
 	// Service registry configuration
 	Registry RegistryConfig `yaml:"registry"`
-	
+
 	// Security configuration
 	Security SecurityConfig `yaml:"security"`
-	
+
 	// Development mode settings
 	Development DevelopmentConfig `yaml:"development"`
 }
@@ -33,22 +33,22 @@ type ServerConfig struct {
 	// Basic server settings
 	Address string `yaml:"address"`
 	Port    int    `yaml:"port"`
-	
+
 	// Timeout settings
 	ReadTimeout     time.Duration `yaml:"read_timeout"`
 	WriteTimeout    time.Duration `yaml:"write_timeout"`
 	IdleTimeout     time.Duration `yaml:"idle_timeout"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout"`
-	
+
 	// TLS configuration
 	TLS TLSConfig `yaml:"tls"`
-	
+
 	// CORS configuration
 	CORS CORSConfig `yaml:"cors"`
-	
+
 	// Middleware settings
 	Middleware MiddlewareConfig `yaml:"middleware"`
-	
+
 	// Health check settings
 	HealthCheck HealthCheckConfig `yaml:"health_check"`
 }
@@ -58,31 +58,31 @@ type TLSConfig struct {
 	Enabled  bool   `yaml:"enabled"`
 	CertFile string `yaml:"cert_file"`
 	KeyFile  string `yaml:"key_file"`
-	
+
 	// Advanced TLS settings
-	MinVersion string   `yaml:"min_version"`  // "1.2" or "1.3"
+	MinVersion string   `yaml:"min_version"` // "1.2" or "1.3"
 	Ciphers    []string `yaml:"ciphers"`
 }
 
 // CORSConfig configures Cross-Origin Resource Sharing
 type CORSConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	AllowOrigins   []string `yaml:"allow_origins"`
-	AllowMethods   []string `yaml:"allow_methods"`
-	AllowHeaders   []string `yaml:"allow_headers"`
-	ExposeHeaders  []string `yaml:"expose_headers"`
-	AllowCredentials bool   `yaml:"allow_credentials"`
-	MaxAge         int      `yaml:"max_age"`
+	Enabled          bool     `yaml:"enabled"`
+	AllowOrigins     []string `yaml:"allow_origins"`
+	AllowMethods     []string `yaml:"allow_methods"`
+	AllowHeaders     []string `yaml:"allow_headers"`
+	ExposeHeaders    []string `yaml:"expose_headers"`
+	AllowCredentials bool     `yaml:"allow_credentials"`
+	MaxAge           int      `yaml:"max_age"`
 }
 
 // MiddlewareConfig configures HTTP middleware
 type MiddlewareConfig struct {
 	// Compression settings
 	Compression CompressionConfig `yaml:"compression"`
-	
+
 	// Rate limiting settings
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
-	
+
 	// Request logging settings
 	RequestLogging RequestLoggingConfig `yaml:"request_logging"`
 }
@@ -90,23 +90,23 @@ type MiddlewareConfig struct {
 // CompressionConfig configures response compression
 type CompressionConfig struct {
 	Enabled bool     `yaml:"enabled"`
-	Level   int      `yaml:"level"`    // 1-9, higher = better compression
-	Types   []string `yaml:"types"`    // MIME types to compress
+	Level   int      `yaml:"level"` // 1-9, higher = better compression
+	Types   []string `yaml:"types"` // MIME types to compress
 }
 
 // RateLimitConfig configures request rate limiting
 type RateLimitConfig struct {
 	Enabled    bool          `yaml:"enabled"`
-	RPS        int           `yaml:"rps"`          // Requests per second
-	Burst      int           `yaml:"burst"`        // Burst capacity
-	WindowSize time.Duration `yaml:"window_size"`  // Time window for rate limiting
+	RPS        int           `yaml:"rps"`         // Requests per second
+	Burst      int           `yaml:"burst"`       // Burst capacity
+	WindowSize time.Duration `yaml:"window_size"` // Time window for rate limiting
 }
 
 // RequestLoggingConfig configures request/response logging
 type RequestLoggingConfig struct {
-	Enabled       bool     `yaml:"enabled"`
-	IncludeBody   bool     `yaml:"include_body"`
-	ExcludePaths  []string `yaml:"exclude_paths"`
+	Enabled        bool     `yaml:"enabled"`
+	IncludeBody    bool     `yaml:"include_body"`
+	ExcludePaths   []string `yaml:"exclude_paths"`
 	IncludeHeaders []string `yaml:"include_headers"`
 }
 
@@ -114,17 +114,17 @@ type RequestLoggingConfig struct {
 type HealthCheckConfig struct {
 	Enabled  bool   `yaml:"enabled"`
 	Endpoint string `yaml:"endpoint"`
-	Detailed bool   `yaml:"detailed"`  // Include detailed health information
+	Detailed bool   `yaml:"detailed"` // Include detailed health information
 }
 
 // LoggingConfig configures application logging
 type LoggingConfig struct {
-	Level  string `yaml:"level"`   // trace, debug, info, warn, error
-	Format string `yaml:"format"`  // json, text
-	
+	Level  string `yaml:"level"`  // trace, debug, info, warn, error
+	Format string `yaml:"format"` // json, text
+
 	// Output configuration
 	Output OutputConfig `yaml:"output"`
-	
+
 	// Structured logging settings
 	Structured StructuredLoggingConfig `yaml:"structured"`
 }
@@ -145,9 +145,9 @@ type ConsoleOutputConfig struct {
 type FileOutputConfig struct {
 	Enabled    bool   `yaml:"enabled"`
 	Path       string `yaml:"path"`
-	MaxSize    int    `yaml:"max_size"`    // MB
+	MaxSize    int    `yaml:"max_size"` // MB
 	MaxBackups int    `yaml:"max_backups"`
-	MaxAge     int    `yaml:"max_age"`     // days
+	MaxAge     int    `yaml:"max_age"` // days
 	Compress   bool   `yaml:"compress"`
 }
 
@@ -164,10 +164,10 @@ type MetricsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Address string `yaml:"address"`
 	Port    int    `yaml:"port"`
-	
+
 	// Prometheus settings
 	Prometheus PrometheusConfig `yaml:"prometheus"`
-	
+
 	// Collection settings
 	Collection MetricsCollectionConfig `yaml:"collection"`
 }
@@ -182,10 +182,10 @@ type PrometheusConfig struct {
 
 // MetricsCollectionConfig configures what metrics to collect
 type MetricsCollectionConfig struct {
-	HTTP     bool `yaml:"http"`      // HTTP request metrics
-	System   bool `yaml:"system"`    // System resource metrics
-	Business bool `yaml:"business"`  // Business logic metrics
-	
+	HTTP     bool `yaml:"http"`     // HTTP request metrics
+	System   bool `yaml:"system"`   // System resource metrics
+	Business bool `yaml:"business"` // Business logic metrics
+
 	// Collection intervals
 	SystemInterval time.Duration `yaml:"system_interval"`
 }
@@ -194,10 +194,10 @@ type MetricsCollectionConfig struct {
 type RegistryConfig struct {
 	// Service discovery settings
 	Discovery DiscoveryConfig `yaml:"discovery"`
-	
+
 	// Load balancing settings
 	LoadBalancer LoadBalancerConfig `yaml:"load_balancer"`
-	
+
 	// Health checking settings
 	HealthChecks HealthChecksConfig `yaml:"health_checks"`
 }
@@ -206,21 +206,21 @@ type RegistryConfig struct {
 type DiscoveryConfig struct {
 	// Static service configuration
 	Static StaticDiscoveryConfig `yaml:"static"`
-	
+
 	// Consul discovery
 	Consul ConsulDiscoveryConfig `yaml:"consul"`
-	
+
 	// Kubernetes discovery
 	Kubernetes KubernetesDiscoveryConfig `yaml:"kubernetes"`
-	
+
 	// File-based discovery
 	File FileDiscoveryConfig `yaml:"file"`
 }
 
 // StaticDiscoveryConfig configures static service definitions
 type StaticDiscoveryConfig struct {
-	Enabled  bool                     `yaml:"enabled"`
-	Services []StaticServiceConfig    `yaml:"services"`
+	Enabled  bool                  `yaml:"enabled"`
+	Services []StaticServiceConfig `yaml:"services"`
 }
 
 // StaticServiceConfig defines a static service
@@ -233,9 +233,9 @@ type StaticServiceConfig struct {
 
 // EndpointConfig defines a service endpoint
 type EndpointConfig struct {
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
-	Weight  int    `yaml:"weight"`
+	Address string   `yaml:"address"`
+	Port    int      `yaml:"port"`
+	Weight  int      `yaml:"weight"`
 	Tags    []string `yaml:"tags"`
 }
 
@@ -244,17 +244,17 @@ type ConsulDiscoveryConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Address string `yaml:"address"`
 	Token   string `yaml:"token"`
-	
+
 	// Service filtering
-	ServicePrefix string `yaml:"service_prefix"`
-	Tags         []string `yaml:"tags"`
+	ServicePrefix string   `yaml:"service_prefix"`
+	Tags          []string `yaml:"tags"`
 }
 
 // KubernetesDiscoveryConfig configures Kubernetes service discovery
 type KubernetesDiscoveryConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Namespace string `yaml:"namespace"`
-	
+
 	// Service selection
 	LabelSelector string `yaml:"label_selector"`
 }
@@ -263,29 +263,29 @@ type KubernetesDiscoveryConfig struct {
 type FileDiscoveryConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Path    string `yaml:"path"`
-	
+
 	// File watching
-	WatchEnabled bool          `yaml:"watch_enabled"`
+	WatchEnabled  bool          `yaml:"watch_enabled"`
 	WatchInterval time.Duration `yaml:"watch_interval"`
 }
 
 // LoadBalancerConfig configures load balancing behavior
 type LoadBalancerConfig struct {
-	Strategy string `yaml:"strategy"`  // round_robin, least_connections, weighted, hash, random
-	
+	Strategy string `yaml:"strategy"` // round_robin, least_connections, weighted, hash, random
+
 	// Health-based routing
 	HealthAware bool `yaml:"health_aware"`
-	
+
 	// Circuit breaker settings
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
 }
 
 // CircuitBreakerConfig configures circuit breaker behavior
 type CircuitBreakerConfig struct {
-	Enabled              bool          `yaml:"enabled"`
-	FailureThreshold     int           `yaml:"failure_threshold"`
-	RecoveryTimeout      time.Duration `yaml:"recovery_timeout"`
-	HalfOpenMaxRequests  int           `yaml:"half_open_max_requests"`
+	Enabled             bool          `yaml:"enabled"`
+	FailureThreshold    int           `yaml:"failure_threshold"`
+	RecoveryTimeout     time.Duration `yaml:"recovery_timeout"`
+	HalfOpenMaxRequests int           `yaml:"half_open_max_requests"`
 }
 
 // HealthChecksConfig configures service health checking
@@ -293,7 +293,7 @@ type HealthChecksConfig struct {
 	Enabled  bool          `yaml:"enabled"`
 	Interval time.Duration `yaml:"interval"`
 	Timeout  time.Duration `yaml:"timeout"`
-	
+
 	// Health check types
 	HTTP HealthCheckHTTPConfig `yaml:"http"`
 	TCP  HealthCheckTCPConfig  `yaml:"tcp"`
@@ -301,11 +301,11 @@ type HealthChecksConfig struct {
 
 // HealthCheckHTTPConfig configures HTTP health checks
 type HealthCheckHTTPConfig struct {
-	Enabled       bool              `yaml:"enabled"`
-	Path          string            `yaml:"path"`
-	Method        string            `yaml:"method"`
-	Headers       map[string]string `yaml:"headers"`
-	ExpectedStatus []int            `yaml:"expected_status"`
+	Enabled        bool              `yaml:"enabled"`
+	Path           string            `yaml:"path"`
+	Method         string            `yaml:"method"`
+	Headers        map[string]string `yaml:"headers"`
+	ExpectedStatus []int             `yaml:"expected_status"`
 }
 
 // HealthCheckTCPConfig configures TCP health checks
@@ -317,10 +317,10 @@ type HealthCheckTCPConfig struct {
 type SecurityConfig struct {
 	// API key authentication
 	APIKey APIKeyConfig `yaml:"api_key"`
-	
+
 	// JWT authentication
 	JWT JWTConfig `yaml:"jwt"`
-	
+
 	// Request validation
 	Validation ValidationConfig `yaml:"validation"`
 }
@@ -337,7 +337,7 @@ type JWTConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Secret    string `yaml:"secret"`
 	Algorithm string `yaml:"algorithm"`
-	
+
 	// Token validation
 	ValidateExpiry   bool `yaml:"validate_expiry"`
 	ValidateIssuer   bool `yaml:"validate_issuer"`
@@ -354,12 +354,12 @@ type ValidationConfig struct {
 // DevelopmentConfig configures development-specific settings
 type DevelopmentConfig struct {
 	Enabled bool `yaml:"enabled"`
-	
+
 	// Development server settings
 	HotReload    bool `yaml:"hot_reload"`
 	DebugMode    bool `yaml:"debug_mode"`
 	ProfilerPort int  `yaml:"profiler_port"`
-	
+
 	// Admin endpoints
 	AdminEndpoints AdminEndpointsConfig `yaml:"admin_endpoints"`
 }
@@ -368,7 +368,7 @@ type DevelopmentConfig struct {
 type AdminEndpointsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Prefix  string `yaml:"prefix"`
-	
+
 	// Available admin functions
 	ConfigReload     bool `yaml:"config_reload"`
 	ServiceDiscovery bool `yaml:"service_discovery"`
@@ -404,7 +404,7 @@ func (c *GatewayConfig) Validate() error {
 	if strategy == "" {
 		strategy = "round_robin" // default
 	}
-	
+
 	valid := false
 	for _, validStrategy := range validStrategies {
 		if strategy == validStrategy {
@@ -422,22 +422,22 @@ func (c *GatewayConfig) Validate() error {
 // ToServerConfig converts GatewayConfig to server.ServerConfig
 func (c *GatewayConfig) ToServerConfig() server.ServerConfig {
 	return server.ServerConfig{
-		Address:         c.Server.Address,
-		Port:            c.Server.Port,
-		ReadTimeout:     c.Server.ReadTimeout,
-		WriteTimeout:    c.Server.WriteTimeout,
-		IdleTimeout:     c.Server.IdleTimeout,
-		ShutdownTimeout: c.Server.ShutdownTimeout,
-		TLSEnabled:      c.Server.TLS.Enabled,
-		TLSCertFile:     c.Server.TLS.CertFile,
-		TLSKeyFile:      c.Server.TLS.KeyFile,
-		CORSEnabled:     c.Server.CORS.Enabled,
-		CORSAllowOrigins: c.Server.CORS.AllowOrigins,
-		CORSAllowMethods: c.Server.CORS.AllowMethods,
-		CORSAllowHeaders: c.Server.CORS.AllowHeaders,
+		Address:               c.Server.Address,
+		Port:                  c.Server.Port,
+		ReadTimeout:           c.Server.ReadTimeout,
+		WriteTimeout:          c.Server.WriteTimeout,
+		IdleTimeout:           c.Server.IdleTimeout,
+		ShutdownTimeout:       c.Server.ShutdownTimeout,
+		TLSEnabled:            c.Server.TLS.Enabled,
+		TLSCertFile:           c.Server.TLS.CertFile,
+		TLSKeyFile:            c.Server.TLS.KeyFile,
+		CORSEnabled:           c.Server.CORS.Enabled,
+		CORSAllowOrigins:      c.Server.CORS.AllowOrigins,
+		CORSAllowMethods:      c.Server.CORS.AllowMethods,
+		CORSAllowHeaders:      c.Server.CORS.AllowHeaders,
 		EnableCompression:     c.Server.Middleware.Compression.Enabled,
 		EnableRateLimit:       c.Server.Middleware.RateLimit.Enabled,
-		RateLimitRPS:         c.Server.Middleware.RateLimit.RPS,
+		RateLimitRPS:          c.Server.Middleware.RateLimit.RPS,
 		EnableHealthEndpoints: c.Server.HealthCheck.Enabled,
 		EnableMetricsEndpoint: c.Metrics.Enabled,
 		EnableAdminEndpoints:  c.Development.AdminEndpoints.Enabled,
@@ -477,8 +477,8 @@ func GetDefaults() *GatewayConfig {
 					WindowSize: time.Minute,
 				},
 				RequestLogging: RequestLoggingConfig{
-					Enabled:     true,
-					IncludeBody: false,
+					Enabled:      true,
+					IncludeBody:  false,
 					ExcludePaths: []string{"/health", "/metrics"},
 				},
 			},

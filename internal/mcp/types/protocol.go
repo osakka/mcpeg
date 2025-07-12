@@ -47,9 +47,9 @@ const (
 
 // MCP-specific error codes
 const (
-	ErrorCodeResourceNotFound = -32001
-	ErrorCodeToolNotFound     = -32002
-	ErrorCodePromptNotFound   = -32003
+	ErrorCodeResourceNotFound   = -32001
+	ErrorCodeToolNotFound       = -32002
+	ErrorCodePromptNotFound     = -32003
 	ErrorCodeServiceUnavailable = -32004
 )
 
@@ -57,9 +57,9 @@ const (
 
 // InitializeParams represents initialization parameters
 type InitializeParams struct {
-	ProtocolVersion string          `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    ClientCapabilities `json:"capabilities"`
-	ClientInfo      ClientInfo      `json:"clientInfo"`
+	ClientInfo      ClientInfo         `json:"clientInfo"`
 }
 
 // InitializeResult represents initialization response
@@ -75,7 +75,7 @@ type ClientCapabilities struct {
 	Roots    *RootsCapability    `json:"roots,omitempty"`
 }
 
-// ServerCapabilities describes what the server supports  
+// ServerCapabilities describes what the server supports
 type ServerCapabilities struct {
 	Resources *ResourcesCapability `json:"resources,omitempty"`
 	Tools     *ToolsCapability     `json:"tools,omitempty"`
@@ -225,8 +225,8 @@ type PromptsGetResult struct {
 
 // PromptMessage represents a message in a prompt
 type PromptMessage struct {
-	Role    string            `json:"role"`
-	Content PromptContent     `json:"content"`
+	Role    string        `json:"role"`
+	Content PromptContent `json:"content"`
 }
 
 // PromptContent represents content in a prompt message
@@ -275,7 +275,7 @@ type AdapterRequest struct {
 
 // AdapterResponse represents a response from a service adapter
 type AdapterResponse struct {
-	Result    interface{}  `json:"result,omitempty"`
+	Result    interface{}   `json:"result,omitempty"`
 	Error     *ServiceError `json:"error,omitempty"`
 	Duration  time.Duration `json:"duration"`
 	Timestamp time.Time     `json:"timestamp"`
@@ -322,7 +322,7 @@ type ListPromptsResult struct {
 
 // GetPromptResult represents the result of getting a prompt
 type GetPromptResult struct {
-	Description string        `json:"description,omitempty"`
+	Description string          `json:"description,omitempty"`
 	Messages    []PromptMessage `json:"messages"`
 }
 

@@ -9,24 +9,24 @@ import (
 	"strings"
 	"text/template"
 	"time"
-	
+
 	"gopkg.in/yaml.v3"
 )
 
 // RouterGenerator generates Go router code from MCP schema
 type RouterGenerator struct {
-	Schema    MCPSchema           `json:"schema"`
-	Config    RouterConfig        `json:"config"`
+	Schema    MCPSchema    `json:"schema"`
+	Config    RouterConfig `json:"config"`
 	Templates map[string]*template.Template
 }
 
 // MCPSchema represents the complete MCP API schema
 type MCPSchema struct {
-	Version     string                    `json:"version"`
-	Methods     map[string]MethodSchema   `json:"methods"`
-	Types       map[string]TypeSchema     `json:"types"`
-	Services    map[string]ServiceSchema  `json:"services"`
-	Generated   time.Time                 `json:"generated"`
+	Version   string                   `json:"version"`
+	Methods   map[string]MethodSchema  `json:"methods"`
+	Types     map[string]TypeSchema    `json:"types"`
+	Services  map[string]ServiceSchema `json:"services"`
+	Generated time.Time                `json:"generated"`
 }
 
 // MethodSchema defines an MCP method
@@ -42,12 +42,12 @@ type MethodSchema struct {
 
 // TypeSchema defines a data type
 type TypeSchema struct {
-	Type        string                 `json:"type"`
-	Properties  map[string]PropertySchema `json:"properties"`
-	Required    []string               `json:"required"`
-	OneOf       []TypeSchema           `json:"oneOf"`
-	Items       *TypeSchema            `json:"items"`
-	Enum        []interface{}          `json:"enum"`
+	Type       string                    `json:"type"`
+	Properties map[string]PropertySchema `json:"properties"`
+	Required   []string                  `json:"required"`
+	OneOf      []TypeSchema              `json:"oneOf"`
+	Items      *TypeSchema               `json:"items"`
+	Enum       []interface{}             `json:"enum"`
 }
 
 // PropertySchema defines a property within a type
@@ -63,11 +63,11 @@ type PropertySchema struct {
 
 // ServiceSchema defines service-specific schema
 type ServiceSchema struct {
-	Name        string                    `json:"name"`
-	Type        string                    `json:"type"`
-	Tools       map[string]ToolSchema     `json:"tools"`
-	Resources   map[string]ResourceSchema `json:"resources"`
-	Prompts     map[string]PromptSchema   `json:"prompts"`
+	Name      string                    `json:"name"`
+	Type      string                    `json:"type"`
+	Tools     map[string]ToolSchema     `json:"tools"`
+	Resources map[string]ResourceSchema `json:"resources"`
+	Prompts   map[string]PromptSchema   `json:"prompts"`
 }
 
 // ToolSchema defines a service tool
@@ -89,21 +89,21 @@ type ResourceSchema struct {
 
 // PromptSchema defines a service prompt
 type PromptSchema struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Arguments   map[string]TypeSchema  `json:"arguments"`
-	Template    string                 `json:"template"`
+	Name        string                `json:"name"`
+	Description string                `json:"description"`
+	Arguments   map[string]TypeSchema `json:"arguments"`
+	Template    string                `json:"template"`
 }
 
 // RouterConfig configures router generation
 type RouterConfig struct {
-	PackageName     string            `json:"package_name"`
-	OutputPath      string            `json:"output_path"`
-	IncludeMetrics  bool              `json:"include_metrics"`
-	IncludeLogging  bool              `json:"include_logging"`
-	IncludeAuth     bool              `json:"include_auth"`
-	IncludeValidation bool            `json:"include_validation"`
-	CustomTypes     map[string]string `json:"custom_types"`
+	PackageName       string            `json:"package_name"`
+	OutputPath        string            `json:"output_path"`
+	IncludeMetrics    bool              `json:"include_metrics"`
+	IncludeLogging    bool              `json:"include_logging"`
+	IncludeAuth       bool              `json:"include_auth"`
+	IncludeValidation bool              `json:"include_validation"`
+	CustomTypes       map[string]string `json:"custom_types"`
 }
 
 // AuthConfig defines authentication requirements
@@ -115,9 +115,9 @@ type AuthConfig struct {
 
 // RateLimit defines rate limiting for methods
 type RateLimit struct {
-	Enabled         bool          `json:"enabled"`
-	RequestsPerMin  int           `json:"requests_per_minute"`
-	Burst           int           `json:"burst"`
+	Enabled        bool `json:"enabled"`
+	RequestsPerMin int  `json:"requests_per_minute"`
+	Burst          int  `json:"burst"`
 }
 
 // ErrorCode defines possible error responses
@@ -134,7 +134,7 @@ func NewRouterGenerator(schema MCPSchema, config RouterConfig) *RouterGenerator 
 		Config:    config,
 		Templates: make(map[string]*template.Template),
 	}
-	
+
 	rg.loadTemplates()
 	return rg
 }
@@ -142,22 +142,22 @@ func NewRouterGenerator(schema MCPSchema, config RouterConfig) *RouterGenerator 
 // GenerateRouter generates the complete router code
 func (rg *RouterGenerator) GenerateRouter() (string, error) {
 	var buf bytes.Buffer
-	
+
 	// Generate package header
 	if err := rg.Templates["header"].Execute(&buf, rg); err != nil {
 		return "", fmt.Errorf("failed to generate header: %w", err)
 	}
-	
+
 	// Generate imports
 	if err := rg.Templates["imports"].Execute(&buf, rg); err != nil {
 		return "", fmt.Errorf("failed to generate imports: %w", err)
 	}
-	
+
 	// Generate router function
 	if err := rg.Templates["router"].Execute(&buf, rg); err != nil {
 		return "", fmt.Errorf("failed to generate router: %w", err)
 	}
-	
+
 	// Generate method handlers
 	for methodName, method := range rg.Schema.Methods {
 		handlerData := struct {
@@ -169,25 +169,25 @@ func (rg *RouterGenerator) GenerateRouter() (string, error) {
 			Method:    method,
 			Name:      methodName,
 		}
-		
+
 		if err := rg.Templates["handler"].Execute(&buf, handlerData); err != nil {
 			return "", fmt.Errorf("failed to generate handler for %s: %w", methodName, err)
 		}
 	}
-	
+
 	// Generate validation functions
 	if rg.Config.IncludeValidation {
 		if err := rg.Templates["validation"].Execute(&buf, rg); err != nil {
 			return "", fmt.Errorf("failed to generate validation: %w", err)
 		}
 	}
-	
+
 	// Format the generated code
 	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
 		return "", fmt.Errorf("failed to format generated code: %w", err)
 	}
-	
+
 	return string(formatted), nil
 }
 
@@ -407,12 +407,12 @@ func validate{{pascalCase $name}}Params(params json.RawMessage) error {
 func init() {
 	// Add custom template functions
 	funcMap := template.FuncMap{
-		"pascalCase": pascalCase,
-		"goType":     goType,
-		"json":       toJSON,
+		"pascalCase":        pascalCase,
+		"goType":            goType,
+		"json":              toJSON,
 		"hasRequiredParams": hasRequiredParams,
 	}
-	
+
 	// Apply function map to all templates
 	template.Must(template.New("").Funcs(funcMap).Parse(""))
 }
@@ -421,11 +421,11 @@ func pascalCase(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	
+
 	// Convert snake_case or kebab-case to PascalCase
 	result := ""
 	capitalize := true
-	
+
 	for _, r := range s {
 		if r == '_' || r == '-' || r == '/' {
 			capitalize = true
@@ -436,7 +436,7 @@ func pascalCase(s string) string {
 			result += string(r)
 		}
 	}
-	
+
 	return result
 }
 
@@ -475,12 +475,12 @@ func GenerateFromConfig(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load schema from config: %w", err)
 	}
-	
+
 	// Generate router code
 	config := RouterConfig{
-		PackageName:     "generated",
-		IncludeLogging:  true,
-		IncludeMetrics:  true,
+		PackageName:       "generated",
+		IncludeLogging:    true,
+		IncludeMetrics:    true,
 		IncludeValidation: true,
 	}
 	generator := NewRouterGenerator(schema, config)
@@ -488,10 +488,10 @@ func GenerateFromConfig(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate router code: %w", err)
 	}
-	
+
 	// Write to output path (for now, just return the code)
 	fmt.Printf("Generated router code:\n%s\n", code)
-	
+
 	return nil
 }
 
@@ -502,7 +502,7 @@ func LoadSchemaFromMCP(specPath string) (MCPSchema, error) {
 	if err != nil {
 		return MCPSchema{}, fmt.Errorf("failed to read spec file: %w", err)
 	}
-	
+
 	// Parse as JSON or YAML
 	var spec map[string]interface{}
 	if strings.HasSuffix(specPath, ".yaml") || strings.HasSuffix(specPath, ".yml") {
@@ -513,13 +513,13 @@ func LoadSchemaFromMCP(specPath string) (MCPSchema, error) {
 	if err != nil {
 		return MCPSchema{}, fmt.Errorf("failed to parse spec: %w", err)
 	}
-	
+
 	// Extract method definitions from the spec
 	schema := MCPSchema{
 		Version: "1.0.0",
 		Methods: make(map[string]MethodSchema),
 	}
-	
+
 	// For now, return a basic schema with common MCP methods
 	// In production, this would parse the actual MCP specification
 	schema.Methods["initialize"] = MethodSchema{
@@ -541,6 +541,6 @@ func LoadSchemaFromMCP(specPath string) (MCPSchema, error) {
 			},
 		},
 	}
-	
+
 	return schema, nil
 }

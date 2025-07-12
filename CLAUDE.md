@@ -139,4 +139,8 @@ make validate
 - **Document decisions** - create ADRs for architectural changes
 - **LLM-optimized logging** - every log entry should provide complete context
 
+### Code Style and Conventions
+
+- We don't use - we always use -- for long flags
+
 This context file should be consulted before making any significant changes to ensure consistency with project principles and patterns.

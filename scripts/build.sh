@@ -217,7 +217,7 @@ dev() {
     fi
     
     log_info "Starting development server..."
-    "${mcpeg_binary}" gateway -dev -log-level debug
+    "${mcpeg_binary}" gateway --dev
 }
 
 # Create release archives

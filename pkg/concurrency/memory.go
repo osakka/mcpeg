@@ -13,17 +13,17 @@ import (
 
 // MemoryStatus represents current memory statistics
 type MemoryStatus struct {
-	Allocated      uint64    `json:"allocated_bytes"`
-	Total          uint64    `json:"total_allocated_bytes"`
-	System         uint64    `json:"system_bytes"`
-	NumGC          uint32    `json:"gc_runs"`
-	LastGC         time.Time `json:"last_gc"`
-	PauseTotal     uint64    `json:"gc_pause_total_ns"`
-	HeapInUse      uint64    `json:"heap_in_use_bytes"`
-	StackInUse     uint64    `json:"stack_in_use_bytes"`
-	NumGoroutines  int       `json:"goroutines"`
-	ThresholdMB    uint64    `json:"threshold_mb"`
-	OverThreshold  bool      `json:"over_threshold"`
+	Allocated     uint64    `json:"allocated_bytes"`
+	Total         uint64    `json:"total_allocated_bytes"`
+	System        uint64    `json:"system_bytes"`
+	NumGC         uint32    `json:"gc_runs"`
+	LastGC        time.Time `json:"last_gc"`
+	PauseTotal    uint64    `json:"gc_pause_total_ns"`
+	HeapInUse     uint64    `json:"heap_in_use_bytes"`
+	StackInUse    uint64    `json:"stack_in_use_bytes"`
+	NumGoroutines int       `json:"goroutines"`
+	ThresholdMB   uint64    `json:"threshold_mb"`
+	OverThreshold bool      `json:"over_threshold"`
 }
 
 // MemoryMonitor tracks memory usage and applies backpressure
@@ -66,7 +66,7 @@ func (m *MemoryMonitor) Stop() {
 // monitor runs the periodic memory check
 func (m *MemoryMonitor) monitor(ctx context.Context) {
 	defer m.wg.Done()
-	
+
 	ticker := time.NewTicker(m.checkPeriod)
 	defer ticker.Stop()
 
@@ -90,7 +90,7 @@ func (m *MemoryMonitor) monitor(ctx context.Context) {
 // checkMemory performs a memory check and takes action if needed
 func (m *MemoryMonitor) checkMemory() {
 	status := m.GetStatus()
-	
+
 	m.mu.Lock()
 	m.lastStatus = status
 	m.mu.Unlock()
@@ -113,11 +113,11 @@ func (m *MemoryMonitor) checkMemory() {
 		before := status.Allocated
 		runtime.GC()
 		debug.FreeOSMemory()
-		
+
 		// Check memory after GC
 		afterStatus := m.GetStatus()
 		freed := int64(before) - int64(afterStatus.Allocated)
-		
+
 		m.logger.Info("gc_triggered",
 			"before_mb", before/(1024*1024),
 			"after_mb", afterStatus.Allocated/(1024*1024),
@@ -177,7 +177,7 @@ func (m *MemoryMonitor) WaitIfNeeded(ctx context.Context) error {
 		if err := m.limiter.Wait(ctx); err != nil {
 			return err
 		}
-		
+
 		m.logger.Debug("memory_backpressure_applied",
 			"allocated_mb", m.lastStatus.Allocated/(1024*1024))
 	}
@@ -223,10 +223,10 @@ func (m *MemoryMonitor) LogDetailedStats() {
 
 // RequestMemoryContext tracks memory usage for a single request
 type RequestMemoryContext struct {
-	StartAlloc     uint64
+	StartAlloc      uint64
 	StartGoroutines int
-	TraceID        string
-	logger         logging.Logger
+	TraceID         string
+	logger          logging.Logger
 }
 
 // NewRequestMemoryContext creates a memory tracking context for a request

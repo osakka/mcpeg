@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/osakka/mcpeg/pkg/logging"
 	"github.com/osakka/mcpeg/internal/mcp/types"
+	"github.com/osakka/mcpeg/pkg/logging"
 )
 
 // MCPValidator provides MCP protocol-specific validation
@@ -33,21 +33,21 @@ func (m *MCPValidator) ValidateRequest(ctx context.Context, request types.Reques
 		Context:     make(map[string]interface{}),
 		Suggestions: make([]string, 0),
 	}
-	
+
 	start := time.Now()
-	
+
 	// Validate basic request structure
 	result = m.mergeResults(result, m.validateRequestStructure(request))
-	
+
 	// Validate JSON-RPC 2.0 compliance
 	result = m.mergeResults(result, m.validateJSONRPC(request))
-	
+
 	// Validate method-specific requirements
 	result = m.mergeResults(result, m.validateMethod(request))
-	
+
 	// Validate parameters based on method
 	result = m.mergeResults(result, m.validateParameters(request))
-	
+
 	// Add MCP-specific context
 	result.Context["mcp_validation"] = map[string]interface{}{
 		"method":           request.Method,
@@ -56,14 +56,14 @@ func (m *MCPValidator) ValidateRequest(ctx context.Context, request types.Reques
 		"validation_time":  time.Since(start),
 		"protocol_version": "2025-03-26",
 	}
-	
+
 	// Generate MCP-specific suggestions
 	if !result.Valid {
 		result.Suggestions = append(result.Suggestions, m.generateMCPSuggestions(request)...)
 	}
-	
+
 	result.Performance.Duration = time.Since(start)
-	
+
 	return result
 }
 
@@ -76,41 +76,41 @@ func (m *MCPValidator) ValidateResponse(ctx context.Context, response types.Resp
 		Context:     make(map[string]interface{}),
 		Suggestions: make([]string, 0),
 	}
-	
+
 	start := time.Now()
-	
+
 	// Validate basic response structure
 	result = m.mergeResults(result, m.validateResponseStructure(response))
-	
+
 	// Validate JSON-RPC 2.0 response compliance
 	result = m.mergeResults(result, m.validateJSONRPCResponse(response))
-	
+
 	// Validate error structure if present
 	if response.Error != nil {
 		result = m.mergeResults(result, m.validateErrorStructure(*response.Error))
 	}
-	
+
 	// Add response-specific context
 	result.Context["mcp_response_validation"] = map[string]interface{}{
-		"has_result":       response.Result != nil,
-		"has_error":        response.Error != nil,
-		"response_id":      response.ID,
-		"validation_time":  time.Since(start),
+		"has_result":      response.Result != nil,
+		"has_error":       response.Error != nil,
+		"response_id":     response.ID,
+		"validation_time": time.Since(start),
 	}
-	
+
 	result.Performance.Duration = time.Since(start)
-	
+
 	return result
 }
 
 // validateRequestStructure validates the basic structure of an MCP request
 func (m *MCPValidator) validateRequestStructure(request types.Request) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	// Validate method field
 	if request.Method == "" {
 		result.Valid = false
@@ -125,7 +125,7 @@ func (m *MCPValidator) validateRequestStructure(request types.Request) Validatio
 			},
 		})
 	}
-	
+
 	// Validate JSON-RPC version
 	if request.JSONRPC != "2.0" {
 		result.Valid = false
@@ -142,7 +142,7 @@ func (m *MCPValidator) validateRequestStructure(request types.Request) Validatio
 			},
 		})
 	}
-	
+
 	// Validate ID field (optional for notifications)
 	if request.ID != nil {
 		// ID should be string, number, or null (we use interface{} so check type)
@@ -162,18 +162,18 @@ func (m *MCPValidator) validateRequestStructure(request types.Request) Validatio
 			})
 		}
 	}
-	
+
 	return result
 }
 
 // validateResponseStructure validates the basic structure of an MCP response
 func (m *MCPValidator) validateResponseStructure(response types.Response) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	// Validate JSON-RPC version
 	if response.JSONRPC != "2.0" {
 		result.Valid = false
@@ -186,7 +186,7 @@ func (m *MCPValidator) validateResponseStructure(response types.Response) Valida
 			Severity: SeverityError,
 		})
 	}
-	
+
 	// Validate ID field is present
 	if response.ID == nil {
 		result.Valid = false
@@ -201,11 +201,11 @@ func (m *MCPValidator) validateResponseStructure(response types.Response) Valida
 			},
 		})
 	}
-	
+
 	// Validate either result or error is present (but not both)
 	hasResult := response.Result != nil
 	hasError := response.Error != nil
-	
+
 	if !hasResult && !hasError {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -219,7 +219,7 @@ func (m *MCPValidator) validateResponseStructure(response types.Response) Valida
 			},
 		})
 	}
-	
+
 	if hasResult && hasError {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -233,61 +233,61 @@ func (m *MCPValidator) validateResponseStructure(response types.Response) Valida
 			},
 		})
 	}
-	
+
 	return result
 }
 
 // validateJSONRPC validates JSON-RPC 2.0 compliance
 func (m *MCPValidator) validateJSONRPC(request types.Request) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	// Additional JSON-RPC validations can be added here
 	// For now, basic structure validation covers most requirements
-	
+
 	return result
 }
 
 // validateJSONRPCResponse validates JSON-RPC 2.0 response compliance
 func (m *MCPValidator) validateJSONRPCResponse(response types.Response) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	// Additional JSON-RPC response validations can be added here
-	
+
 	return result
 }
 
 // validateMethod validates MCP method names and compliance
 func (m *MCPValidator) validateMethod(request types.Request) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	// Define valid MCP methods
 	validMethods := map[string]bool{
-		"initialize":        true,
-		"ping":             true,
-		"tools/list":       true,
-		"tools/call":       true,
-		"resources/list":   true,
-		"resources/read":   true,
-		"resources/subscribe": true,
+		"initialize":            true,
+		"ping":                  true,
+		"tools/list":            true,
+		"tools/call":            true,
+		"resources/list":        true,
+		"resources/read":        true,
+		"resources/subscribe":   true,
 		"resources/unsubscribe": true,
-		"prompts/list":     true,
-		"prompts/get":      true,
-		"logging/setLevel": true,
-		"completion/complete": true,
+		"prompts/list":          true,
+		"prompts/get":           true,
+		"logging/setLevel":      true,
+		"completion/complete":   true,
 	}
-	
+
 	if !validMethods[request.Method] {
 		// Check if it's a notification method
 		if strings.HasPrefix(request.Method, "notifications/") {
@@ -315,7 +315,7 @@ func (m *MCPValidator) validateMethod(request types.Request) ValidationResult {
 			})
 		}
 	}
-	
+
 	// Validate method naming conventions
 	if !m.isValidMethodName(request.Method) {
 		result.Warnings = append(result.Warnings, ValidationWarning{
@@ -329,18 +329,18 @@ func (m *MCPValidator) validateMethod(request types.Request) ValidationResult {
 			},
 		})
 	}
-	
+
 	return result
 }
 
 // validateParameters validates method-specific parameters
 func (m *MCPValidator) validateParameters(request types.Request) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	switch request.Method {
 	case "initialize":
 		result = m.mergeResults(result, m.validateInitializeParams(request.Params))
@@ -351,18 +351,18 @@ func (m *MCPValidator) validateParameters(request types.Request) ValidationResul
 	case "prompts/get":
 		result = m.mergeResults(result, m.validatePromptGetParams(request.Params))
 	}
-	
+
 	return result
 }
 
 // validateInitializeParams validates initialize method parameters
 func (m *MCPValidator) validateInitializeParams(params interface{}) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	if params == nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -377,21 +377,21 @@ func (m *MCPValidator) validateInitializeParams(params interface{}) ValidationRe
 		})
 		return result
 	}
-	
+
 	// In a full implementation, we would parse params and validate specific fields
 	// For now, we'll do basic structure validation
-	
+
 	return result
 }
 
 // validateToolCallParams validates tools/call method parameters
 func (m *MCPValidator) validateToolCallParams(params interface{}) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	if params == nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -405,18 +405,18 @@ func (m *MCPValidator) validateToolCallParams(params interface{}) ValidationResu
 			},
 		})
 	}
-	
+
 	return result
 }
 
 // validateResourceReadParams validates resources/read method parameters
 func (m *MCPValidator) validateResourceReadParams(params interface{}) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	if params == nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -429,18 +429,18 @@ func (m *MCPValidator) validateResourceReadParams(params interface{}) Validation
 			},
 		})
 	}
-	
+
 	return result
 }
 
 // validatePromptGetParams validates prompts/get method parameters
 func (m *MCPValidator) validatePromptGetParams(params interface{}) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	if params == nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -453,18 +453,18 @@ func (m *MCPValidator) validatePromptGetParams(params interface{}) ValidationRes
 			},
 		})
 	}
-	
+
 	return result
 }
 
 // validateErrorStructure validates MCP error structure
 func (m *MCPValidator) validateErrorStructure(error types.Error) ValidationResult {
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  make([]ValidationError, 0),
+		Valid:    true,
+		Errors:   make([]ValidationError, 0),
 		Warnings: make([]ValidationWarning, 0),
 	}
-	
+
 	// Validate error code
 	if error.Code == 0 {
 		result.Valid = false
@@ -479,7 +479,7 @@ func (m *MCPValidator) validateErrorStructure(error types.Error) ValidationResul
 			},
 		})
 	}
-	
+
 	// Validate error message
 	if error.Message == "" {
 		result.Valid = false
@@ -494,7 +494,7 @@ func (m *MCPValidator) validateErrorStructure(error types.Error) ValidationResul
 			},
 		})
 	}
-	
+
 	// Validate standard error codes
 	standardCodes := map[int]string{
 		-32700: "Parse error",
@@ -503,7 +503,7 @@ func (m *MCPValidator) validateErrorStructure(error types.Error) ValidationResul
 		-32602: "Invalid params",
 		-32603: "Internal error",
 	}
-	
+
 	if msg, isStandard := standardCodes[error.Code]; isStandard {
 		if error.Message != msg {
 			result.Warnings = append(result.Warnings, ValidationWarning{
@@ -518,20 +518,20 @@ func (m *MCPValidator) validateErrorStructure(error types.Error) ValidationResul
 			})
 		}
 	}
-	
+
 	return result
 }
 
 // generateMCPSuggestions generates MCP-specific suggestions for failed validation
 func (m *MCPValidator) generateMCPSuggestions(request types.Request) []string {
 	suggestions := []string{}
-	
+
 	suggestions = append(suggestions,
 		"Review MCP protocol specification (2025-03-26)",
 		"Ensure JSON-RPC 2.0 compliance",
 		"Validate method names against supported methods",
 		"Check parameter structure for the specific method")
-	
+
 	// Method-specific suggestions
 	switch request.Method {
 	case "initialize":
@@ -547,40 +547,40 @@ func (m *MCPValidator) generateMCPSuggestions(request types.Request) []string {
 			"Include valid resource URI",
 			"Ensure resource exists and is accessible")
 	}
-	
+
 	return suggestions
 }
 
 // Helper methods
 func (m *MCPValidator) isValidMethodName(method string) bool {
 	// MCP method names should be lowercase with forward slashes
-	return strings.ToLower(method) == method && 
-	       !strings.Contains(method, " ") &&
-	       !strings.HasPrefix(method, "/") &&
-	       !strings.HasSuffix(method, "/")
+	return strings.ToLower(method) == method &&
+		!strings.Contains(method, " ") &&
+		!strings.HasPrefix(method, "/") &&
+		!strings.HasSuffix(method, "/")
 }
 
 func (m *MCPValidator) mergeResults(base, additional ValidationResult) ValidationResult {
 	result := base
-	
+
 	result.Errors = append(result.Errors, additional.Errors...)
 	result.Warnings = append(result.Warnings, additional.Warnings...)
 	result.Suggestions = append(result.Suggestions, additional.Suggestions...)
-	
+
 	if !additional.Valid {
 		result.Valid = false
 	}
-	
+
 	// Merge context
 	for k, v := range additional.Context {
 		result.Context[k] = v
 	}
-	
+
 	// Merge performance metrics
 	result.Performance.RulesEvaluated += additional.Performance.RulesEvaluated
 	result.Performance.FieldsChecked += additional.Performance.FieldsChecked
 	result.Performance.CacheHits += additional.Performance.CacheHits
 	result.Performance.CacheMisses += additional.Performance.CacheMisses
-	
+
 	return result
 }

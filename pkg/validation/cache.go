@@ -11,15 +11,15 @@ import (
 
 // MemoryCache provides in-memory caching for validation results
 type MemoryCache struct {
-	cache map[string]*CacheEntry
-	mutex sync.RWMutex
+	cache   map[string]*CacheEntry
+	mutex   sync.RWMutex
 	maxSize int
 }
 
 // CacheEntry represents a cached validation result
 type CacheEntry struct {
-	Result    *ValidationResult
-	ExpiresAt time.Time
+	Result      *ValidationResult
+	ExpiresAt   time.Time
 	AccessCount int
 	LastAccess  time.Time
 }
@@ -36,23 +36,23 @@ func NewMemoryCache() *MemoryCache {
 func (c *MemoryCache) Get(key string) (*ValidationResult, bool) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	
+
 	entry, exists := c.cache[key]
 	if !exists {
 		return nil, false
 	}
-	
+
 	// Check if expired
 	if time.Now().After(entry.ExpiresAt) {
 		// Remove expired entry (deferred cleanup)
 		go c.removeExpired(key)
 		return nil, false
 	}
-	
+
 	// Update access statistics
 	entry.AccessCount++
 	entry.LastAccess = time.Now()
-	
+
 	return entry.Result, true
 }
 
@@ -60,12 +60,12 @@ func (c *MemoryCache) Get(key string) (*ValidationResult, bool) {
 func (c *MemoryCache) Set(key string, result *ValidationResult, expiry time.Duration) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	// Check cache size and evict if necessary
 	if len(c.cache) >= c.maxSize {
 		c.evictLRU()
 	}
-	
+
 	c.cache[key] = &CacheEntry{
 		Result:      result,
 		ExpiresAt:   time.Now().Add(expiry),
@@ -78,7 +78,7 @@ func (c *MemoryCache) Set(key string, result *ValidationResult, expiry time.Dura
 func (c *MemoryCache) Clear() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	c.cache = make(map[string]*CacheEntry)
 }
 
@@ -86,7 +86,7 @@ func (c *MemoryCache) Clear() {
 func (c *MemoryCache) removeExpired(key string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	delete(c.cache, key)
 }
 
@@ -94,14 +94,14 @@ func (c *MemoryCache) removeExpired(key string) {
 func (c *MemoryCache) evictLRU() {
 	var oldestKey string
 	var oldestTime time.Time = time.Now()
-	
+
 	for key, entry := range c.cache {
 		if entry.LastAccess.Before(oldestTime) {
 			oldestTime = entry.LastAccess
 			oldestKey = key
 		}
 	}
-	
+
 	if oldestKey != "" {
 		delete(c.cache, oldestKey)
 	}
@@ -135,7 +135,7 @@ func (v *Validator) generateCacheKey(value interface{}, category string) string 
 		// Fallback to string representation
 		return fmt.Sprintf("%s:%v", category, value)
 	}
-	
+
 	// Create MD5 hash for consistent key length
 	hash := md5.Sum(data)
 	return fmt.Sprintf("validation:%x", hash)
@@ -150,16 +150,16 @@ func (v *Validator) validateAgainstSchema(ctx context.Context, data interface{},
 		Context:     make(map[string]interface{}),
 		Suggestions: make([]string, 0),
 	}
-	
+
 	// This is a simplified schema validation implementation
 	// In a full implementation, you would use a proper JSON Schema validator
-	
+
 	result.Context["schema_validation"] = map[string]interface{}{
 		"schema_type": fmt.Sprintf("%T", schema),
 		"data_type":   fmt.Sprintf("%T", data),
 		"note":        "Simplified schema validation implementation",
 	}
-	
+
 	return result
 }
 
@@ -169,19 +169,19 @@ func (v *Validator) recordValidationMetrics(result ValidationResult, category st
 		"category", category,
 		"valid", fmt.Sprintf("%t", result.Valid),
 	}
-	
+
 	v.metrics.Inc("validation_requests_total", labels...)
 	v.metrics.Set("validation_duration_seconds", result.Performance.Duration.Seconds(), labels...)
 	v.metrics.Set("validation_rules_evaluated", float64(result.Performance.RulesEvaluated), labels...)
 	v.metrics.Set("validation_fields_checked", float64(result.Performance.FieldsChecked), labels...)
 	v.metrics.Set("validation_cache_hits", float64(result.Performance.CacheHits), labels...)
 	v.metrics.Set("validation_cache_misses", float64(result.Performance.CacheMisses), labels...)
-	
+
 	if !result.Valid {
 		v.metrics.Inc("validation_failures_total", labels...)
 		v.metrics.Set("validation_error_count", float64(len(result.Errors)), labels...)
 	}
-	
+
 	if len(result.Warnings) > 0 {
 		v.metrics.Set("validation_warning_count", float64(len(result.Warnings)), labels...)
 	}
@@ -191,7 +191,7 @@ func (v *Validator) recordValidationMetrics(result ValidationResult, category st
 func (v *Validator) logValidationResult(result ValidationResult, category string, value interface{}) {
 	logLevel := "info"
 	message := "validation_completed"
-	
+
 	if !result.Valid {
 		logLevel = "error"
 		message = "validation_failed"
@@ -199,7 +199,7 @@ func (v *Validator) logValidationResult(result ValidationResult, category string
 		logLevel = "warn"
 		message = "validation_completed_with_warnings"
 	}
-	
+
 	fields := []interface{}{
 		"category", category,
 		"valid", result.Valid,
@@ -213,7 +213,7 @@ func (v *Validator) logValidationResult(result ValidationResult, category string
 		"suggestions", result.Suggestions,
 		"context", result.Context,
 	}
-	
+
 	// Add detailed error information for failures
 	if !result.Valid {
 		errorDetails := make([]map[string]interface{}, 0, len(result.Errors))
@@ -231,7 +231,7 @@ func (v *Validator) logValidationResult(result ValidationResult, category string
 		}
 		fields = append(fields, "errors", errorDetails)
 	}
-	
+
 	// Add warning information
 	if len(result.Warnings) > 0 {
 		warningDetails := make([]map[string]interface{}, 0, len(result.Warnings))
@@ -246,7 +246,7 @@ func (v *Validator) logValidationResult(result ValidationResult, category string
 		}
 		fields = append(fields, "warnings", warningDetails)
 	}
-	
+
 	switch logLevel {
 	case "error":
 		v.logger.Error(message, fields...)
@@ -264,12 +264,12 @@ func (v *Validator) registerBuiltInRules() {
 	v.RegisterRule("general", &TypeValidationRule{})
 	v.RegisterRule("general", &RangeValidationRule{})
 	v.RegisterRule("general", &FormatValidationRule{})
-	
+
 	// Register MCP-specific rules
 	v.RegisterRule("mcp", &MCPMethodRule{})
 	v.RegisterRule("mcp", &MCPVersionRule{})
 	v.RegisterRule("mcp", &MCPParameterRule{})
-	
+
 	v.logger.Info("built_in_validation_rules_registered",
 		"total_categories", len(v.rules),
 		"total_rules", v.getTotalRuleCount())

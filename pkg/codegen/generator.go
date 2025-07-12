@@ -26,36 +26,36 @@ type CodeGenerator struct {
 // GeneratorConfig configures code generation behavior
 type GeneratorConfig struct {
 	// Output settings
-	OutputDir        string `yaml:"output_dir"`
-	PackageName      string `yaml:"package_name"`
-	ModulePath       string `yaml:"module_path"`
-	
+	OutputDir   string `yaml:"output_dir"`
+	PackageName string `yaml:"package_name"`
+	ModulePath  string `yaml:"module_path"`
+
 	// Generation options
-	GenerateTypes    bool   `yaml:"generate_types"`
-	GenerateHandlers bool   `yaml:"generate_handlers"`
-	GenerateClients  bool   `yaml:"generate_clients"`
+	GenerateTypes      bool `yaml:"generate_types"`
+	GenerateHandlers   bool `yaml:"generate_handlers"`
+	GenerateClients    bool `yaml:"generate_clients"`
 	GenerateValidators bool `yaml:"generate_validators"`
-	GenerateTests    bool   `yaml:"generate_tests"`
-	
+	GenerateTests      bool `yaml:"generate_tests"`
+
 	// Code style options
-	UsePointers      bool   `yaml:"use_pointers"`
-	JSONTags         bool   `yaml:"json_tags"`
-	ValidationTags   bool   `yaml:"validation_tags"`
-	
+	UsePointers    bool `yaml:"use_pointers"`
+	JSONTags       bool `yaml:"json_tags"`
+	ValidationTags bool `yaml:"validation_tags"`
+
 	// Template options
-	TemplateDir      string `yaml:"template_dir"`
-	CustomTemplates  map[string]string `yaml:"custom_templates"`
+	TemplateDir     string            `yaml:"template_dir"`
+	CustomTemplates map[string]string `yaml:"custom_templates"`
 }
 
 // OpenAPISpec represents a parsed OpenAPI specification
 type OpenAPISpec struct {
-	OpenAPI    string                 `json:"openapi"`
-	Info       APIInfo                `json:"info"`
-	Servers    []Server               `json:"servers"`
-	Paths      map[string]PathItem    `json:"paths"`
-	Components Components             `json:"components"`
-	Security   []SecurityRequirement  `json:"security"`
-	Tags       []Tag                  `json:"tags"`
+	OpenAPI    string                `json:"openapi"`
+	Info       APIInfo               `json:"info"`
+	Servers    []Server              `json:"servers"`
+	Paths      map[string]PathItem   `json:"paths"`
+	Components Components            `json:"components"`
+	Security   []SecurityRequirement `json:"security"`
+	Tags       []Tag                 `json:"tags"`
 }
 
 // APIInfo represents API information
@@ -139,9 +139,9 @@ type Header struct {
 
 // MediaType represents a media type
 type MediaType struct {
-	Schema   Schema                 `json:"schema"`
-	Example  interface{}            `json:"example"`
-	Examples map[string]Example     `json:"examples"`
+	Schema   Schema             `json:"schema"`
+	Example  interface{}        `json:"example"`
+	Examples map[string]Example `json:"examples"`
 }
 
 // Example represents an example value
@@ -216,12 +216,12 @@ type GeneratedCode struct {
 
 // TypeDefinition represents a generated type
 type TypeDefinition struct {
-	Name        string
-	Type        string
-	Comment     string
-	Fields      []FieldDefinition
-	Methods     []MethodDefinition
-	Tags        map[string]string
+	Name    string
+	Type    string
+	Comment string
+	Fields  []FieldDefinition
+	Methods []MethodDefinition
+	Tags    map[string]string
 }
 
 // FieldDefinition represents a struct field
@@ -282,30 +282,30 @@ func NewCodeGenerator(logger logging.Logger, metrics metrics.Metrics) *CodeGener
 		config:    defaultGeneratorConfig(),
 		templates: make(map[string]*template.Template),
 	}
-	
+
 	// Load default templates
 	if err := cg.loadTemplates(); err != nil {
 		logger.Error("failed_to_load_templates", "error", err)
 	}
-	
+
 	return cg
 }
 
 // GenerateFromSpec generates Go code from an OpenAPI specification
 func (cg *CodeGenerator) GenerateFromSpec(ctx context.Context, spec *OpenAPISpec) (*GeneratedCode, error) {
 	start := time.Now()
-	
+
 	cg.logger.Info("starting_code_generation",
 		"spec_title", spec.Info.Title,
 		"spec_version", spec.Info.Version,
 		"paths_count", len(spec.Paths),
 		"schemas_count", len(spec.Components.Schemas))
-	
+
 	generated := &GeneratedCode{
 		Package: cg.config.PackageName,
 		Imports: cg.generateImports(spec),
 	}
-	
+
 	// Generate types from schemas
 	if cg.config.GenerateTypes {
 		types, err := cg.generateTypes(ctx, spec)
@@ -314,7 +314,7 @@ func (cg *CodeGenerator) GenerateFromSpec(ctx context.Context, spec *OpenAPISpec
 		}
 		generated.Types = types
 	}
-	
+
 	// Generate handlers from paths
 	if cg.config.GenerateHandlers {
 		functions, err := cg.generateHandlers(ctx, spec)
@@ -323,7 +323,7 @@ func (cg *CodeGenerator) GenerateFromSpec(ctx context.Context, spec *OpenAPISpec
 		}
 		generated.Functions = append(generated.Functions, functions...)
 	}
-	
+
 	// Generate client code
 	if cg.config.GenerateClients {
 		clientTypes, clientFunctions, err := cg.generateClients(ctx, spec)
@@ -333,7 +333,7 @@ func (cg *CodeGenerator) GenerateFromSpec(ctx context.Context, spec *OpenAPISpec
 		generated.Types = append(generated.Types, clientTypes...)
 		generated.Functions = append(generated.Functions, clientFunctions...)
 	}
-	
+
 	// Generate validators
 	if cg.config.GenerateValidators {
 		validators, err := cg.generateValidators(ctx, spec)
@@ -342,22 +342,22 @@ func (cg *CodeGenerator) GenerateFromSpec(ctx context.Context, spec *OpenAPISpec
 		}
 		generated.Functions = append(generated.Functions, validators...)
 	}
-	
+
 	// Generate constants
 	constants := cg.generateConstants(spec)
 	generated.Constants = constants
-	
+
 	duration := time.Since(start)
-	
+
 	cg.logger.Info("code_generation_completed",
 		"duration", duration,
 		"types_generated", len(generated.Types),
 		"functions_generated", len(generated.Functions),
 		"constants_generated", len(generated.Constants))
-	
+
 	// Record metrics
 	cg.recordGenerationMetrics(spec, generated, duration)
-	
+
 	return generated, nil
 }
 
@@ -366,39 +366,39 @@ func (cg *CodeGenerator) WriteCode(ctx context.Context, generated *GeneratedCode
 	if err := os.MkdirAll(cg.config.OutputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	
+
 	// Generate main types file
 	if len(generated.Types) > 0 {
 		if err := cg.writeTypesFile(generated); err != nil {
 			return fmt.Errorf("failed to write types file: %w", err)
 		}
 	}
-	
+
 	// Generate handlers file
 	if len(generated.Functions) > 0 {
 		if err := cg.writeFunctionsFile(generated); err != nil {
 			return fmt.Errorf("failed to write functions file: %w", err)
 		}
 	}
-	
+
 	// Generate constants file
 	if len(generated.Constants) > 0 {
 		if err := cg.writeConstantsFile(generated); err != nil {
 			return fmt.Errorf("failed to write constants file: %w", err)
 		}
 	}
-	
+
 	cg.logger.Info("code_files_written",
 		"output_dir", cg.config.OutputDir,
 		"package", generated.Package)
-	
+
 	return nil
 }
 
 // generateTypes generates Go types from OpenAPI schemas
 func (cg *CodeGenerator) generateTypes(ctx context.Context, spec *OpenAPISpec) ([]TypeDefinition, error) {
 	var types []TypeDefinition
-	
+
 	for name, schema := range spec.Components.Schemas {
 		typeDef, err := cg.schemaToType(name, schema, spec)
 		if err != nil {
@@ -406,14 +406,14 @@ func (cg *CodeGenerator) generateTypes(ctx context.Context, spec *OpenAPISpec) (
 		}
 		types = append(types, *typeDef)
 	}
-	
+
 	return types, nil
 }
 
 // generateHandlers generates HTTP handlers from OpenAPI paths
 func (cg *CodeGenerator) generateHandlers(ctx context.Context, spec *OpenAPISpec) ([]FunctionDefinition, error) {
 	var functions []FunctionDefinition
-	
+
 	for path, pathItem := range spec.Paths {
 		if pathItem.GET != nil {
 			fn := cg.operationToHandler("GET", path, pathItem.GET, spec)
@@ -432,7 +432,7 @@ func (cg *CodeGenerator) generateHandlers(ctx context.Context, spec *OpenAPISpec
 			functions = append(functions, fn)
 		}
 	}
-	
+
 	return functions, nil
 }
 
@@ -440,7 +440,7 @@ func (cg *CodeGenerator) generateHandlers(ctx context.Context, spec *OpenAPISpec
 func (cg *CodeGenerator) generateClients(ctx context.Context, spec *OpenAPISpec) ([]TypeDefinition, []FunctionDefinition, error) {
 	var types []TypeDefinition
 	var functions []FunctionDefinition
-	
+
 	// Generate client struct
 	clientType := TypeDefinition{
 		Name:    "Client",
@@ -465,7 +465,7 @@ func (cg *CodeGenerator) generateClients(ctx context.Context, spec *OpenAPISpec)
 		},
 	}
 	types = append(types, clientType)
-	
+
 	// Generate constructor
 	constructor := FunctionDefinition{
 		Name: "NewClient",
@@ -476,11 +476,11 @@ func (cg *CodeGenerator) generateClients(ctx context.Context, spec *OpenAPISpec)
 		Returns: []ParameterDefinition{
 			{Name: "", Type: "*Client"},
 		},
-		Body: cg.generateClientConstructor(),
+		Body:    cg.generateClientConstructor(),
 		Comment: "NewClient creates a new API client",
 	}
 	functions = append(functions, constructor)
-	
+
 	// Generate client methods for each operation
 	for path, pathItem := range spec.Paths {
 		if pathItem.GET != nil {
@@ -493,26 +493,26 @@ func (cg *CodeGenerator) generateClients(ctx context.Context, spec *OpenAPISpec)
 		}
 		// Add other HTTP methods as needed
 	}
-	
+
 	return types, functions, nil
 }
 
 // generateValidators generates validation functions
 func (cg *CodeGenerator) generateValidators(ctx context.Context, spec *OpenAPISpec) ([]FunctionDefinition, error) {
 	var functions []FunctionDefinition
-	
+
 	for name, schema := range spec.Components.Schemas {
 		validator := cg.schemaToValidator(name, schema)
 		functions = append(functions, validator)
 	}
-	
+
 	return functions, nil
 }
 
 // generateConstants generates constants from the specification
 func (cg *CodeGenerator) generateConstants(spec *OpenAPISpec) []ConstantDefinition {
 	var constants []ConstantDefinition
-	
+
 	// API version constant
 	constants = append(constants, ConstantDefinition{
 		Name:    "APIVersion",
@@ -520,7 +520,7 @@ func (cg *CodeGenerator) generateConstants(spec *OpenAPISpec) []ConstantDefiniti
 		Value:   fmt.Sprintf(`"%s"`, spec.Info.Version),
 		Comment: "APIVersion is the version of the API",
 	})
-	
+
 	// Server URLs
 	for i, server := range spec.Servers {
 		name := fmt.Sprintf("ServerURL%d", i)
@@ -534,7 +534,7 @@ func (cg *CodeGenerator) generateConstants(spec *OpenAPISpec) []ConstantDefiniti
 			Comment: fmt.Sprintf("%s: %s", name, server.Description),
 		})
 	}
-	
+
 	return constants
 }
 
@@ -547,12 +547,12 @@ func (cg *CodeGenerator) generateImports(spec *OpenAPISpec) []string {
 		"net/http",
 		"time",
 	}
-	
+
 	// Add validation imports if generating validators
 	if cg.config.GenerateValidators {
 		imports = append(imports, "github.com/osakka/mcpeg/pkg/validation")
 	}
-	
+
 	return imports
 }
 
@@ -563,17 +563,17 @@ func (cg *CodeGenerator) schemaToType(name string, schema Schema, spec *OpenAPIS
 		Comment: schema.Description,
 		Tags:    make(map[string]string),
 	}
-	
+
 	if schema.Type == "object" || len(schema.Properties) > 0 {
 		typeDef.Type = "struct"
-		
+
 		for propName, propSchema := range schema.Properties {
 			field := FieldDefinition{
 				Name:    toPascalCase(propName),
 				Comment: propSchema.Description,
 				Tags:    make(map[string]string),
 			}
-			
+
 			// Determine if field is optional
 			isRequired := false
 			for _, required := range schema.Required {
@@ -583,19 +583,19 @@ func (cg *CodeGenerator) schemaToType(name string, schema Schema, spec *OpenAPIS
 				}
 			}
 			field.Optional = !isRequired
-			
+
 			// Generate Go type for field
 			goType, err := cg.schemaToGoType(propSchema, spec)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert property %s: %w", propName, err)
 			}
-			
+
 			if field.Optional && !strings.HasPrefix(goType, "*") && !strings.HasPrefix(goType, "[]") && !strings.HasPrefix(goType, "map[") {
 				goType = "*" + goType
 			}
-			
+
 			field.Type = goType
-			
+
 			// Add JSON tags
 			if cg.config.JSONTags {
 				jsonTag := propName
@@ -604,7 +604,7 @@ func (cg *CodeGenerator) schemaToType(name string, schema Schema, spec *OpenAPIS
 				}
 				field.Tags["json"] = jsonTag
 			}
-			
+
 			// Add validation tags
 			if cg.config.ValidationTags {
 				validationTag := cg.generateValidationTag(propSchema, isRequired)
@@ -612,7 +612,7 @@ func (cg *CodeGenerator) schemaToType(name string, schema Schema, spec *OpenAPIS
 					field.Tags["validate"] = validationTag
 				}
 			}
-			
+
 			typeDef.Fields = append(typeDef.Fields, field)
 		}
 	} else {
@@ -623,7 +623,7 @@ func (cg *CodeGenerator) schemaToType(name string, schema Schema, spec *OpenAPIS
 		}
 		typeDef.Type = goType
 	}
-	
+
 	return typeDef, nil
 }
 
@@ -634,13 +634,13 @@ func (cg *CodeGenerator) schemaToGoType(schema Schema, spec *OpenAPISpec) (strin
 		refName := extractRefName(schema.Ref)
 		return toPascalCase(refName), nil
 	}
-	
+
 	switch schema.Type {
 	case "string":
 		if len(schema.Enum) > 0 {
 			// For enum types, generate a string type for now
-		// In a full implementation, we'd generate custom enum types
-		return "string", nil
+			// In a full implementation, we'd generate custom enum types
+			return "string", nil
 		}
 		return "string", nil
 	case "integer":
@@ -688,7 +688,7 @@ func (cg *CodeGenerator) operationToHandler(method, path string, op *Operation, 
 	if funcName == "" {
 		funcName = toPascalCase(method + strings.ReplaceAll(path, "/", "_"))
 	}
-	
+
 	return FunctionDefinition{
 		Name: funcName,
 		Parameters: []ParameterDefinition{
@@ -706,12 +706,12 @@ func (cg *CodeGenerator) operationToClientMethod(method, path string, op *Operat
 	if funcName == "" {
 		funcName = toPascalCase(method + strings.ReplaceAll(path, "/", "_"))
 	}
-	
+
 	params := []ParameterDefinition{
 		{Name: "c", Type: "*Client"},
 		{Name: "ctx", Type: "context.Context"},
 	}
-	
+
 	// Add parameters from operation
 	for _, param := range op.Parameters {
 		goType, _ := cg.schemaToGoType(param.Schema, spec)
@@ -720,7 +720,7 @@ func (cg *CodeGenerator) operationToClientMethod(method, path string, op *Operat
 			Type: goType,
 		})
 	}
-	
+
 	// Add request body parameter if present
 	if op.RequestBody != nil {
 		bodyType := "interface{}"
@@ -738,7 +738,7 @@ func (cg *CodeGenerator) operationToClientMethod(method, path string, op *Operat
 			Type: bodyType,
 		})
 	}
-	
+
 	// Generate return type from response schemas
 	responseType := "interface{}"
 	if op.Responses != nil {
@@ -756,12 +756,12 @@ func (cg *CodeGenerator) operationToClientMethod(method, path string, op *Operat
 			}
 		}
 	}
-	
+
 	returns := []ParameterDefinition{
 		{Name: "", Type: responseType},
 		{Name: "", Type: "error"},
 	}
-	
+
 	return FunctionDefinition{
 		Name:       funcName,
 		Parameters: params,
@@ -774,7 +774,7 @@ func (cg *CodeGenerator) operationToClientMethod(method, path string, op *Operat
 // schemaToValidator generates a validation function for a schema
 func (cg *CodeGenerator) schemaToValidator(name string, schema Schema) FunctionDefinition {
 	funcName := fmt.Sprintf("Validate%s", toPascalCase(name))
-	
+
 	return FunctionDefinition{
 		Name: funcName,
 		Parameters: []ParameterDefinition{
@@ -809,7 +809,7 @@ func (cg *CodeGenerator) generateHandlerBody(method, path string, op *Operation,
 	}
 	
 	json.NewEncoder(w).Encode(response)`
-	
+
 	t := template.Must(template.New("handler").Parse(tmpl))
 	var buf bytes.Buffer
 	t.Execute(&buf, map[string]interface{}{
@@ -820,7 +820,7 @@ func (cg *CodeGenerator) generateHandlerBody(method, path string, op *Operation,
 		"OperationID": op.OperationID,
 		"Parameters":  op.Parameters,
 	})
-	
+
 	return buf.String()
 }
 
@@ -892,23 +892,23 @@ func (cg *CodeGenerator) generateValidatorBody(name string, schema Schema) strin
 // generateValidationTag generates validation tags for a schema
 func (cg *CodeGenerator) generateValidationTag(schema Schema, required bool) string {
 	var tags []string
-	
+
 	if required {
 		tags = append(tags, "required")
 	}
-	
+
 	if schema.MinLength != nil {
 		tags = append(tags, fmt.Sprintf("min=%d", *schema.MinLength))
 	}
-	
+
 	if schema.MaxLength != nil {
 		tags = append(tags, fmt.Sprintf("max=%d", *schema.MaxLength))
 	}
-	
+
 	if schema.Pattern != "" {
 		tags = append(tags, fmt.Sprintf("regex=%s", schema.Pattern))
 	}
-	
+
 	return strings.Join(tags, ",")
 }
 
@@ -918,15 +918,15 @@ func toPascalCase(s string) string {
 	if s == "" {
 		return ""
 	}
-	
+
 	words := strings.FieldsFunc(s, func(c rune) bool {
 		return c == '_' || c == '-' || c == ' ' || c == '.'
 	})
-	
+
 	for i, word := range words {
 		words[i] = strings.Title(strings.ToLower(word))
 	}
-	
+
 	return strings.Join(words, "")
 }
 
@@ -935,7 +935,7 @@ func toCamelCase(s string) string {
 	if len(pascal) == 0 {
 		return ""
 	}
-	
+
 	return strings.ToLower(pascal[:1]) + pascal[1:]
 }
 
@@ -946,19 +946,19 @@ func extractRefName(ref string) string {
 
 func defaultGeneratorConfig() GeneratorConfig {
 	return GeneratorConfig{
-		OutputDir:        "generated",
-		PackageName:      "generated",
-		ModulePath:       "github.com/osakka/mcpeg",
-		GenerateTypes:    true,
-		GenerateHandlers: true,
-		GenerateClients:  true,
+		OutputDir:          "generated",
+		PackageName:        "generated",
+		ModulePath:         "github.com/osakka/mcpeg",
+		GenerateTypes:      true,
+		GenerateHandlers:   true,
+		GenerateClients:    true,
 		GenerateValidators: true,
-		GenerateTests:    false,
-		UsePointers:      true,
-		JSONTags:         true,
-		ValidationTags:   true,
-		TemplateDir:      "templates",
-		CustomTemplates:  make(map[string]string),
+		GenerateTests:      false,
+		UsePointers:        true,
+		JSONTags:           true,
+		ValidationTags:     true,
+		TemplateDir:        "templates",
+		CustomTemplates:    make(map[string]string),
 	}
 }
 
@@ -967,48 +967,48 @@ func defaultGeneratorConfig() GeneratorConfig {
 func (cg *CodeGenerator) writeTypesFile(generated *GeneratedCode) error {
 	filename := filepath.Join(cg.config.OutputDir, "types.go")
 	content := cg.renderTypesFile(generated)
-	
+
 	formatted, err := format.Source([]byte(content))
 	if err != nil {
 		cg.logger.Warn("failed_to_format_types_file", "error", err)
 		formatted = []byte(content)
 	}
-	
+
 	return os.WriteFile(filename, formatted, 0644)
 }
 
 func (cg *CodeGenerator) writeFunctionsFile(generated *GeneratedCode) error {
 	filename := filepath.Join(cg.config.OutputDir, "handlers.go")
 	content := cg.renderFunctionsFile(generated)
-	
+
 	formatted, err := format.Source([]byte(content))
 	if err != nil {
 		cg.logger.Warn("failed_to_format_functions_file", "error", err)
 		formatted = []byte(content)
 	}
-	
+
 	return os.WriteFile(filename, formatted, 0644)
 }
 
 func (cg *CodeGenerator) writeConstantsFile(generated *GeneratedCode) error {
 	filename := filepath.Join(cg.config.OutputDir, "constants.go")
 	content := cg.renderConstantsFile(generated)
-	
+
 	formatted, err := format.Source([]byte(content))
 	if err != nil {
 		cg.logger.Warn("failed_to_format_constants_file", "error", err)
 		formatted = []byte(content)
 	}
-	
+
 	return os.WriteFile(filename, formatted, 0644)
 }
 
 func (cg *CodeGenerator) renderTypesFile(generated *GeneratedCode) string {
 	var buf bytes.Buffer
-	
+
 	// Package declaration
 	fmt.Fprintf(&buf, "package %s\n\n", generated.Package)
-	
+
 	// Imports
 	if len(generated.Imports) > 0 {
 		buf.WriteString("import (\n")
@@ -1017,20 +1017,20 @@ func (cg *CodeGenerator) renderTypesFile(generated *GeneratedCode) string {
 		}
 		buf.WriteString(")\n\n")
 	}
-	
+
 	// Types
 	for _, typeDef := range generated.Types {
 		if typeDef.Comment != "" {
 			fmt.Fprintf(&buf, "// %s %s\n", typeDef.Name, typeDef.Comment)
 		}
-		
+
 		if typeDef.Type == "struct" {
 			fmt.Fprintf(&buf, "type %s struct {\n", typeDef.Name)
 			for _, field := range typeDef.Fields {
 				if field.Comment != "" {
 					fmt.Fprintf(&buf, "\t// %s\n", field.Comment)
 				}
-				
+
 				tagStr := ""
 				if len(field.Tags) > 0 {
 					var tags []string
@@ -1039,7 +1039,7 @@ func (cg *CodeGenerator) renderTypesFile(generated *GeneratedCode) string {
 					}
 					tagStr = fmt.Sprintf(" `%s`", strings.Join(tags, " "))
 				}
-				
+
 				fmt.Fprintf(&buf, "\t%s %s%s\n", field.Name, field.Type, tagStr)
 			}
 			buf.WriteString("}\n\n")
@@ -1047,16 +1047,16 @@ func (cg *CodeGenerator) renderTypesFile(generated *GeneratedCode) string {
 			fmt.Fprintf(&buf, "type %s %s\n\n", typeDef.Name, typeDef.Type)
 		}
 	}
-	
+
 	return buf.String()
 }
 
 func (cg *CodeGenerator) renderFunctionsFile(generated *GeneratedCode) string {
 	var buf bytes.Buffer
-	
+
 	// Package declaration
 	fmt.Fprintf(&buf, "package %s\n\n", generated.Package)
-	
+
 	// Imports
 	if len(generated.Imports) > 0 {
 		buf.WriteString("import (\n")
@@ -1065,13 +1065,13 @@ func (cg *CodeGenerator) renderFunctionsFile(generated *GeneratedCode) string {
 		}
 		buf.WriteString(")\n\n")
 	}
-	
+
 	// Functions
 	for _, funcDef := range generated.Functions {
 		if funcDef.Comment != "" {
 			fmt.Fprintf(&buf, "// %s\n", funcDef.Comment)
 		}
-		
+
 		// Function signature
 		buf.WriteString("func ")
 		if len(funcDef.Parameters) > 0 && funcDef.Parameters[0].Type == "*Client" {
@@ -1094,7 +1094,7 @@ func (cg *CodeGenerator) renderFunctionsFile(generated *GeneratedCode) string {
 			}
 		}
 		buf.WriteString(")")
-		
+
 		// Return types
 		if len(funcDef.Returns) > 0 {
 			if len(funcDef.Returns) == 1 {
@@ -1110,21 +1110,21 @@ func (cg *CodeGenerator) renderFunctionsFile(generated *GeneratedCode) string {
 				buf.WriteString(")")
 			}
 		}
-		
+
 		buf.WriteString(" {\n")
 		buf.WriteString(funcDef.Body)
 		buf.WriteString("\n}\n\n")
 	}
-	
+
 	return buf.String()
 }
 
 func (cg *CodeGenerator) renderConstantsFile(generated *GeneratedCode) string {
 	var buf bytes.Buffer
-	
+
 	// Package declaration
 	fmt.Fprintf(&buf, "package %s\n\n", generated.Package)
-	
+
 	// Constants
 	if len(generated.Constants) > 0 {
 		buf.WriteString("const (\n")
@@ -1136,7 +1136,7 @@ func (cg *CodeGenerator) renderConstantsFile(generated *GeneratedCode) string {
 		}
 		buf.WriteString(")\n")
 	}
-	
+
 	return buf.String()
 }
 
@@ -1151,7 +1151,7 @@ func (cg *CodeGenerator) recordGenerationMetrics(spec *OpenAPISpec, generated *G
 		"spec_title", spec.Info.Title,
 		"spec_version", spec.Info.Version,
 	}
-	
+
 	cg.metrics.Set("codegen_duration_seconds", duration.Seconds(), labels...)
 	cg.metrics.Set("codegen_types_generated", float64(len(generated.Types)), labels...)
 	cg.metrics.Set("codegen_functions_generated", float64(len(generated.Functions)), labels...)

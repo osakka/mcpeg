@@ -17,7 +17,7 @@ import (
 // EditorService provides file system operations and editing capabilities
 type EditorService struct {
 	*BasePlugin
-	workingDir string
+	workingDir  string
 	maxFileSize int64
 	allowedExts map[string]bool
 }
@@ -60,18 +60,18 @@ func (es *EditorService) Initialize(ctx context.Context, config PluginConfig) er
 	if err := es.BasePlugin.Initialize(ctx, config); err != nil {
 		return err
 	}
-	
+
 	// Set working directory
 	es.workingDir = "."
 	if configWorkDir, ok := config.Config["working_dir"].(string); ok {
 		es.workingDir = configWorkDir
 	}
-	
+
 	// Set max file size if configured
 	if configMaxSize, ok := config.Config["max_file_size"].(float64); ok {
 		es.maxFileSize = int64(configMaxSize)
 	}
-	
+
 	// Set allowed extensions if configured
 	if configExts, ok := config.Config["allowed_extensions"].([]interface{}); ok {
 		es.allowedExts = make(map[string]bool)
@@ -81,12 +81,12 @@ func (es *EditorService) Initialize(ctx context.Context, config PluginConfig) er
 			}
 		}
 	}
-	
+
 	es.logger.Info("editor_service_initialized",
 		"working_dir", es.workingDir,
 		"max_file_size", es.maxFileSize,
 		"allowed_extensions", len(es.allowedExts))
-	
+
 	return nil
 }
 
@@ -114,11 +114,11 @@ func (es *EditorService) GetTools() []registry.ToolDefinition {
 						"description": "Read specific line range",
 						"properties": map[string]interface{}{
 							"start": map[string]interface{}{
-								"type": "integer",
+								"type":    "integer",
 								"minimum": 1,
 							},
 							"end": map[string]interface{}{
-								"type": "integer",
+								"type":    "integer",
 								"minimum": 1,
 							},
 						},
@@ -423,7 +423,7 @@ func (es *EditorService) CallTool(ctx context.Context, name string, args json.Ra
 	defer func() {
 		es.LogToolCall(name, time.Since(start), nil)
 	}()
-	
+
 	switch name {
 	case "read_file":
 		return es.handleReadFile(args)
@@ -450,7 +450,7 @@ func (es *EditorService) ReadResource(ctx context.Context, uri string) (interfac
 	defer func() {
 		es.LogResourceAccess(uri, time.Since(start), nil)
 	}()
-	
+
 	switch uri {
 	case "file_tree":
 		return es.getFileTree()
@@ -489,46 +489,46 @@ func (es *EditorService) handleReadFile(args json.RawMessage) (interface{}, erro
 			End   int `json:"end"`
 		} `json:"lines,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Encoding == "" {
 		req.Encoding = "utf-8"
 	}
-	
+
 	// Validate file path
 	if err := es.validatePath(req.Path); err != nil {
 		return nil, err
 	}
-	
+
 	fullPath := filepath.Join(es.workingDir, req.Path)
-	
+
 	// Check file size
 	fileInfo, err := os.Stat(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat file: %w", err)
 	}
-	
+
 	if fileInfo.Size() > es.maxFileSize {
 		return nil, fmt.Errorf("file too large (%d bytes, max: %d)", fileInfo.Size(), es.maxFileSize)
 	}
-	
+
 	// Read file
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
-	
+
 	contentStr := string(content)
-	
+
 	// Handle line range if specified
 	if req.Lines != nil {
 		lines := strings.Split(contentStr, "\n")
 		start := req.Lines.Start - 1 // Convert to 0-based
 		end := req.Lines.End
-		
+
 		if start < 0 {
 			start = 0
 		}
@@ -538,13 +538,13 @@ func (es *EditorService) handleReadFile(args json.RawMessage) (interface{}, erro
 		if start >= end {
 			return nil, fmt.Errorf("invalid line range")
 		}
-		
+
 		contentStr = strings.Join(lines[start:end], "\n")
 	}
-	
+
 	es.metrics.Inc("editor_read_operations_total")
 	es.metrics.Add("editor_bytes_read", float64(len(content)))
-	
+
 	return map[string]interface{}{
 		"path":     req.Path,
 		"content":  contentStr,
@@ -562,22 +562,22 @@ func (es *EditorService) handleWriteFile(args json.RawMessage) (interface{}, err
 		CreateDirs bool   `json:"create_dirs"`
 		Backup     bool   `json:"backup"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Encoding == "" {
 		req.Encoding = "utf-8"
 	}
-	
+
 	// Validate file path
 	if err := es.validatePath(req.Path); err != nil {
 		return nil, err
 	}
-	
+
 	fullPath := filepath.Join(es.workingDir, req.Path)
-	
+
 	// Create directories if requested
 	if req.CreateDirs {
 		dir := filepath.Dir(fullPath)
@@ -585,7 +585,7 @@ func (es *EditorService) handleWriteFile(args json.RawMessage) (interface{}, err
 			return nil, fmt.Errorf("failed to create directories: %w", err)
 		}
 	}
-	
+
 	// Create backup if requested and file exists
 	var backupPath string
 	if req.Backup {
@@ -596,15 +596,15 @@ func (es *EditorService) handleWriteFile(args json.RawMessage) (interface{}, err
 			}
 		}
 	}
-	
+
 	// Write file
 	if err := os.WriteFile(fullPath, []byte(req.Content), 0644); err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
-	
+
 	es.metrics.Inc("editor_write_operations_total")
 	es.metrics.Add("editor_bytes_written", float64(len(req.Content)))
-	
+
 	return map[string]interface{}{
 		"success":     true,
 		"path":        req.Path,
@@ -620,29 +620,29 @@ func (es *EditorService) handleCreateFile(args json.RawMessage) (interface{}, er
 		Template   string `json:"template"`
 		CreateDirs bool   `json:"create_dirs"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	// Validate file path
 	if err := es.validatePath(req.Path); err != nil {
 		return nil, err
 	}
-	
+
 	fullPath := filepath.Join(es.workingDir, req.Path)
-	
+
 	// Check if file already exists
 	if _, err := os.Stat(fullPath); err == nil {
 		return nil, fmt.Errorf("file already exists: %s", req.Path)
 	}
-	
+
 	// Apply template if specified
 	content := req.Content
 	if req.Template != "" {
 		content = es.applyTemplate(req.Template, req.Path)
 	}
-	
+
 	// Create directories if requested
 	if req.CreateDirs {
 		dir := filepath.Dir(fullPath)
@@ -650,14 +650,14 @@ func (es *EditorService) handleCreateFile(args json.RawMessage) (interface{}, er
 			return nil, fmt.Errorf("failed to create directories: %w", err)
 		}
 	}
-	
+
 	// Create file
 	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
 		return nil, fmt.Errorf("failed to create file: %w", err)
 	}
-	
+
 	es.metrics.Inc("editor_create_operations_total")
-	
+
 	return map[string]interface{}{
 		"success":  true,
 		"path":     req.Path,
@@ -672,30 +672,30 @@ func (es *EditorService) handleDeleteFile(args json.RawMessage) (interface{}, er
 		Recursive bool   `json:"recursive"`
 		Confirm   bool   `json:"confirm"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if !req.Confirm {
 		return nil, fmt.Errorf("deletion requires confirmation")
 	}
-	
+
 	// Validate file path
 	if err := es.validatePath(req.Path); err != nil {
 		return nil, err
 	}
-	
+
 	fullPath := filepath.Join(es.workingDir, req.Path)
-	
+
 	// Check if path exists
 	fileInfo, err := os.Stat(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("path does not exist: %s", req.Path)
 	}
-	
+
 	var deletedItems int
-	
+
 	if fileInfo.IsDir() {
 		if req.Recursive {
 			err = filepath.WalkDir(fullPath, func(path string, d fs.DirEntry, err error) error {
@@ -707,7 +707,7 @@ func (es *EditorService) handleDeleteFile(args json.RawMessage) (interface{}, er
 			if err != nil {
 				return nil, fmt.Errorf("failed to walk directory: %w", err)
 			}
-			
+
 			err = os.RemoveAll(fullPath)
 		} else {
 			err = os.Remove(fullPath)
@@ -717,14 +717,14 @@ func (es *EditorService) handleDeleteFile(args json.RawMessage) (interface{}, er
 		err = os.Remove(fullPath)
 		deletedItems = 1
 	}
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete: %w", err)
 	}
-	
+
 	es.metrics.Inc("editor_delete_operations_total")
 	es.metrics.Add("editor_items_deleted", float64(deletedItems))
-	
+
 	return map[string]interface{}{
 		"success":       true,
 		"path":          req.Path,
@@ -740,30 +740,30 @@ func (es *EditorService) handleListDirectory(args json.RawMessage) (interface{},
 		ShowHidden bool    `json:"show_hidden"`
 		Pattern    *string `json:"pattern,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Path == "" {
 		req.Path = "."
 	}
-	
+
 	// Validate path
 	if err := es.validatePath(req.Path); err != nil {
 		return nil, err
 	}
-	
+
 	fullPath := filepath.Join(es.workingDir, req.Path)
-	
+
 	var items []map[string]interface{}
-	
+
 	if req.Recursive {
 		err := filepath.WalkDir(fullPath, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			
+
 			// Skip hidden files if not requested
 			if !req.ShowHidden && strings.HasPrefix(d.Name(), ".") {
 				if d.IsDir() {
@@ -771,27 +771,27 @@ func (es *EditorService) handleListDirectory(args json.RawMessage) (interface{},
 				}
 				return nil
 			}
-			
+
 			// Apply pattern filter
 			if req.Pattern != nil && !es.matchPattern(d.Name(), *req.Pattern) {
 				return nil
 			}
-			
+
 			relPath, _ := filepath.Rel(es.workingDir, path)
-			
+
 			info, _ := d.Info()
 			item := map[string]interface{}{
-				"name":    d.Name(),
-				"path":    relPath,
-				"is_dir":  d.IsDir(),
-				"size":    info.Size(),
+				"name":     d.Name(),
+				"path":     relPath,
+				"is_dir":   d.IsDir(),
+				"size":     info.Size(),
 				"mod_time": info.ModTime(),
 			}
-			
+
 			items = append(items, item)
 			return nil
 		})
-		
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to walk directory: %w", err)
 		}
@@ -800,33 +800,33 @@ func (es *EditorService) handleListDirectory(args json.RawMessage) (interface{},
 		if err != nil {
 			return nil, fmt.Errorf("failed to read directory: %w", err)
 		}
-		
+
 		for _, entry := range entries {
 			// Skip hidden files if not requested
 			if !req.ShowHidden && strings.HasPrefix(entry.Name(), ".") {
 				continue
 			}
-			
+
 			// Apply pattern filter
 			if req.Pattern != nil && !es.matchPattern(entry.Name(), *req.Pattern) {
 				continue
 			}
-			
+
 			info, _ := entry.Info()
 			item := map[string]interface{}{
-				"name":    entry.Name(),
-				"path":    filepath.Join(req.Path, entry.Name()),
-				"is_dir":  entry.IsDir(),
-				"size":    info.Size(),
+				"name":     entry.Name(),
+				"path":     filepath.Join(req.Path, entry.Name()),
+				"is_dir":   entry.IsDir(),
+				"size":     info.Size(),
 				"mod_time": info.ModTime(),
 			}
-			
+
 			items = append(items, item)
 		}
 	}
-	
+
 	es.metrics.Inc("editor_list_operations_total")
-	
+
 	return map[string]interface{}{
 		"path":      req.Path,
 		"items":     items,
@@ -843,58 +843,58 @@ func (es *EditorService) handleSearchFiles(args json.RawMessage) (interface{}, e
 		CaseSensitive bool    `json:"case_sensitive"`
 		MaxResults    int     `json:"max_results"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Path == "" {
 		req.Path = "."
 	}
-	
+
 	if req.MaxResults <= 0 {
 		req.MaxResults = 100
 	}
-	
+
 	// Validate path
 	if err := es.validatePath(req.Path); err != nil {
 		return nil, err
 	}
-	
+
 	fullPath := filepath.Join(es.workingDir, req.Path)
-	
+
 	var results []map[string]interface{}
 	searchPattern := req.Pattern
 	if !req.CaseSensitive {
 		searchPattern = strings.ToLower(searchPattern)
 	}
-	
+
 	err := filepath.WalkDir(fullPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Skip directories and hidden files
 		if d.IsDir() || strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
-		
+
 		// Apply file pattern filter
 		if req.FilePattern != nil && !es.matchPattern(d.Name(), *req.FilePattern) {
 			return nil
 		}
-		
+
 		// Check if we've reached max results
 		if len(results) >= req.MaxResults {
 			return filepath.SkipAll
 		}
-		
+
 		// Search within file
 		matches, err := es.searchInFile(path, searchPattern, req.CaseSensitive)
 		if err != nil {
 			return nil // Skip files that can't be read
 		}
-		
+
 		if len(matches) > 0 {
 			relPath, _ := filepath.Rel(es.workingDir, path)
 			results = append(results, map[string]interface{}{
@@ -902,21 +902,21 @@ func (es *EditorService) handleSearchFiles(args json.RawMessage) (interface{}, e
 				"matches": matches,
 			})
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
-	
+
 	es.metrics.Inc("editor_search_operations_total")
-	
+
 	return map[string]interface{}{
-		"pattern":     req.Pattern,
-		"results":     results,
+		"pattern":      req.Pattern,
+		"results":      results,
 		"result_count": len(results),
-		"max_results": req.MaxResults,
+		"max_results":  req.MaxResults,
 	}, nil
 }
 
@@ -926,11 +926,11 @@ func (es *EditorService) handleMoveFile(args json.RawMessage) (interface{}, erro
 		Destination string `json:"destination"`
 		CreateDirs  bool   `json:"create_dirs"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	// Validate paths
 	if err := es.validatePath(req.Source); err != nil {
 		return nil, fmt.Errorf("invalid source path: %w", err)
@@ -938,15 +938,15 @@ func (es *EditorService) handleMoveFile(args json.RawMessage) (interface{}, erro
 	if err := es.validatePath(req.Destination); err != nil {
 		return nil, fmt.Errorf("invalid destination path: %w", err)
 	}
-	
+
 	sourcePath := filepath.Join(es.workingDir, req.Source)
 	destPath := filepath.Join(es.workingDir, req.Destination)
-	
+
 	// Check if source exists
 	if _, err := os.Stat(sourcePath); err != nil {
 		return nil, fmt.Errorf("source does not exist: %s", req.Source)
 	}
-	
+
 	// Create destination directories if requested
 	if req.CreateDirs {
 		destDir := filepath.Dir(destPath)
@@ -954,14 +954,14 @@ func (es *EditorService) handleMoveFile(args json.RawMessage) (interface{}, erro
 			return nil, fmt.Errorf("failed to create destination directories: %w", err)
 		}
 	}
-	
+
 	// Move file
 	if err := os.Rename(sourcePath, destPath); err != nil {
 		return nil, fmt.Errorf("failed to move file: %w", err)
 	}
-	
+
 	es.metrics.Inc("editor_move_operations_total")
-	
+
 	return map[string]interface{}{
 		"success":     true,
 		"source":      req.Source,
@@ -976,7 +976,7 @@ func (es *EditorService) validatePath(path string) error {
 	if strings.Contains(path, "..") {
 		return fmt.Errorf("path traversal not allowed")
 	}
-	
+
 	// Check file extension if restrictions are in place
 	if len(es.allowedExts) > 0 {
 		ext := filepath.Ext(path)
@@ -984,7 +984,7 @@ func (es *EditorService) validatePath(path string) error {
 			return fmt.Errorf("file extension not allowed: %s", ext)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -993,18 +993,18 @@ func (es *EditorService) matchPattern(name, pattern string) bool {
 	if pattern == "*" {
 		return true
 	}
-	
+
 	// Basic wildcard support
 	if strings.HasSuffix(pattern, "*") {
 		prefix := pattern[:len(pattern)-1]
 		return strings.HasPrefix(name, prefix)
 	}
-	
+
 	if strings.HasPrefix(pattern, "*") {
 		suffix := pattern[1:]
 		return strings.HasSuffix(name, suffix)
 	}
-	
+
 	return name == pattern
 }
 
@@ -1014,29 +1014,29 @@ func (es *EditorService) searchInFile(filePath, pattern string, caseSensitive bo
 		return nil, err
 	}
 	defer file.Close()
-	
+
 	var matches []map[string]interface{}
 	scanner := bufio.NewScanner(file)
 	lineNum := 1
-	
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		searchLine := line
-		
+
 		if !caseSensitive {
 			searchLine = strings.ToLower(line)
 		}
-		
+
 		if strings.Contains(searchLine, pattern) {
 			matches = append(matches, map[string]interface{}{
 				"line_number": lineNum,
 				"line":        line,
 			})
 		}
-		
+
 		lineNum++
 	}
-	
+
 	return matches, scanner.Err()
 }
 
@@ -1045,7 +1045,7 @@ func (es *EditorService) copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(dst, sourceData, 0644)
 }
 
@@ -1066,12 +1066,12 @@ func (es *EditorService) applyTemplate(template, path string) string {
 
 func (es *EditorService) getFileTree() (map[string]interface{}, error) {
 	tree := make(map[string]interface{})
-	
+
 	err := filepath.WalkDir(es.workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Skip hidden files and directories
 		if strings.HasPrefix(d.Name(), ".") {
 			if d.IsDir() {
@@ -1079,26 +1079,26 @@ func (es *EditorService) getFileTree() (map[string]interface{}, error) {
 			}
 			return nil
 		}
-		
+
 		relPath, _ := filepath.Rel(es.workingDir, path)
 		if relPath == "." {
 			return nil
 		}
-		
+
 		info, _ := d.Info()
 		tree[relPath] = map[string]interface{}{
-			"is_dir":  d.IsDir(),
-			"size":    info.Size(),
+			"is_dir":   d.IsDir(),
+			"size":     info.Size(),
 			"mod_time": info.ModTime(),
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return map[string]interface{}{
 		"working_dir": es.workingDir,
 		"tree":        tree,
@@ -1108,12 +1108,12 @@ func (es *EditorService) getFileTree() (map[string]interface{}, error) {
 func (es *EditorService) getFileStats() (map[string]interface{}, error) {
 	var totalFiles, totalDirs int
 	var totalSize int64
-	
+
 	err := filepath.WalkDir(es.workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		if d.IsDir() {
 			totalDirs++
 		} else {
@@ -1122,19 +1122,19 @@ func (es *EditorService) getFileStats() (map[string]interface{}, error) {
 				totalSize += info.Size()
 			}
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return map[string]interface{}{
-		"total_files":      totalFiles,
+		"total_files":       totalFiles,
 		"total_directories": totalDirs,
-		"total_size_bytes": totalSize,
-		"working_dir":      es.workingDir,
+		"total_size_bytes":  totalSize,
+		"working_dir":       es.workingDir,
 	}, nil
 }
 
@@ -1152,7 +1152,7 @@ func (es *EditorService) handleCodeReviewPrompt(args json.RawMessage) (interface
 
 func (es *EditorService) handleFileSummaryPrompt(args json.RawMessage) (interface{}, error) {
 	return map[string]interface{}{
-		"prompt": "Generate a summary of file contents",
+		"prompt":       "Generate a summary of file contents",
 		"instructions": "Read the file and provide a concise summary of its purpose and functionality",
 	}, nil
 }

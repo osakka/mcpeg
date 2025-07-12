@@ -24,7 +24,7 @@ func TestLLMLogger(t *testing.T) {
 	}
 
 	t.Run("logs contain all required fields", func(t *testing.T) {
-		logger.Info("test_operation", 
+		logger.Info("test_operation",
 			"key1", "value1",
 			"key2", 42,
 			"nested", map[string]interface{}{
@@ -36,7 +36,7 @@ func TestLLMLogger(t *testing.T) {
 		}
 
 		entry := output.entries[0]
-		
+
 		// Verify required fields
 		if entry.Level != LevelInfo {
 			t.Errorf("expected level INFO, got %s", entry.Level)
@@ -50,7 +50,7 @@ func TestLLMLogger(t *testing.T) {
 		if entry.Timestamp.IsZero() {
 			t.Error("timestamp should not be zero")
 		}
-		
+
 		// Verify data fields
 		if entry.Data["key1"] != "value1" {
 			t.Errorf("expected key1=value1, got %v", entry.Data["key1"])
@@ -58,7 +58,7 @@ func TestLLMLogger(t *testing.T) {
 		if entry.Data["key2"] != 42 {
 			t.Errorf("expected key2=42, got %v", entry.Data["key2"])
 		}
-		
+
 		// Verify execution context
 		if entry.Context == nil {
 			t.Error("execution context should not be nil")
@@ -87,7 +87,7 @@ func TestLLMLogger(t *testing.T) {
 		if len(entry.Suggestions) == 0 {
 			t.Error("error log should include suggestions")
 		}
-		
+
 		// Verify timeout-specific suggestions
 		foundTimeoutSuggestion := false
 		for _, suggestion := range entry.Suggestions {
@@ -103,17 +103,17 @@ func TestLLMLogger(t *testing.T) {
 
 	t.Run("context propagation", func(t *testing.T) {
 		output.entries = nil
-		
+
 		ctx := context.WithValue(context.Background(), "trace_id", "trace-123")
 		ctx = context.WithValue(ctx, "span_id", "span-456")
-		
+
 		contextLogger := logger.WithContext(ctx)
 		contextLogger.Info("context_test")
-		
+
 		if len(output.entries) != 1 {
 			t.Fatalf("expected 1 entry, got %d", len(output.entries))
 		}
-		
+
 		entry := output.entries[0]
 		if entry.TraceID != "trace-123" {
 			t.Errorf("expected trace_id=trace-123, got %s", entry.TraceID)
@@ -166,21 +166,21 @@ func TestErrorChain(t *testing.T) {
 	// Create nested errors
 	rootErr := &testError{msg: "root cause"}
 	wrappedErr := &wrappedError{msg: "wrapped error", cause: rootErr}
-	
+
 	chain := buildErrorChain(wrappedErr)
-	
+
 	if chain == nil {
 		t.Fatal("error chain should not be nil")
 	}
-	
+
 	if chain.Message != "wrapped error" {
 		t.Errorf("expected message 'wrapped error', got %s", chain.Message)
 	}
-	
+
 	if chain.Cause == nil {
 		t.Fatal("cause should not be nil")
 	}
-	
+
 	if chain.Cause.Message != "root cause" {
 		t.Errorf("expected cause message 'root cause', got %s", chain.Cause.Message)
 	}

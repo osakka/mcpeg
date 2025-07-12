@@ -8,24 +8,24 @@ import (
 // ServiceAdapter is the interface all service adapters must implement
 type ServiceAdapter interface {
 	// Metadata
-	Name() string                    // Unique adapter name (e.g., "mysql", "vault")
-	Type() string                    // Service type (e.g., "database", "secrets")
-	Description() string             // Human-readable description
-	
+	Name() string        // Unique adapter name (e.g., "mysql", "vault")
+	Type() string        // Service type (e.g., "database", "secrets")
+	Description() string // Human-readable description
+
 	// Lifecycle
-	Initialize(config ServiceConfig) error       // One-time initialization
-	Start(ctx context.Context) error            // Start the adapter
-	Stop(ctx context.Context) error             // Graceful shutdown
-	
+	Initialize(config ServiceConfig) error // One-time initialization
+	Start(ctx context.Context) error       // Start the adapter
+	Stop(ctx context.Context) error        // Graceful shutdown
+
 	// MCP Protocol Implementation
-	GetTools() []ToolDefinition                // MCP tools this adapter provides
-	GetResources() []ResourceDefinition        // MCP resources this adapter provides
-	GetPrompts() []PromptDefinition           // MCP prompts this adapter provides
-	
+	GetTools() []ToolDefinition         // MCP tools this adapter provides
+	GetResources() []ResourceDefinition // MCP resources this adapter provides
+	GetPrompts() []PromptDefinition     // MCP prompts this adapter provides
+
 	// Execution
 	ExecuteTool(ctx context.Context, tool string, params map[string]interface{}) (interface{}, error)
 	GetResource(ctx context.Context, uri string) (interface{}, error)
-	
+
 	// Health and Monitoring
 	HealthCheck(ctx context.Context) error
 	GetMetrics() AdapterMetrics
@@ -35,18 +35,18 @@ type ServiceAdapter interface {
 // ServiceConfig contains configuration for a service adapter
 type ServiceConfig struct {
 	// Basic configuration
-	Enabled bool                     `yaml:"enabled"`
-	Type    string                  `yaml:"type"`
-	Driver  string                  `yaml:"driver"`
-	
+	Enabled bool   `yaml:"enabled"`
+	Type    string `yaml:"type"`
+	Driver  string `yaml:"driver"`
+
 	// Resource limits
-	MaxConnections     int         `yaml:"max_connections"`
-	Timeout           time.Duration `yaml:"timeout"`
-	MemoryLimitMB     int         `yaml:"memory_limit_mb"`
-	
+	MaxConnections int           `yaml:"max_connections"`
+	Timeout        time.Duration `yaml:"timeout"`
+	MemoryLimitMB  int           `yaml:"memory_limit_mb"`
+
 	// Circuit breaker configuration
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
-	
+
 	// Custom configuration for specific adapter
 	Custom map[string]interface{} `yaml:"config"`
 }
@@ -88,24 +88,24 @@ type AdapterMetrics struct {
 	SuccessRequests uint64        `json:"success_requests"`
 	FailedRequests  uint64        `json:"failed_requests"`
 	AverageLatency  time.Duration `json:"average_latency_ms"`
-	
+
 	// Resource metrics
-	ActiveConnections int    `json:"active_connections"`
-	MemoryUsageMB     int    `json:"memory_usage_mb"`
-	
+	ActiveConnections int `json:"active_connections"`
+	MemoryUsageMB     int `json:"memory_usage_mb"`
+
 	// Circuit breaker metrics
 	CircuitBreakerState string `json:"circuit_breaker_state"`
 	ConsecutiveFailures int    `json:"consecutive_failures"`
-	
+
 	// Timestamp
 	LastUpdated time.Time `json:"last_updated"`
 }
 
 // AdapterStatus represents the current status of an adapter
 type AdapterStatus struct {
-	State           AdapterState `json:"state"`
-	Message         string       `json:"message"`
-	LastHealthCheck time.Time    `json:"last_health_check"`
+	State           AdapterState  `json:"state"`
+	Message         string        `json:"message"`
+	LastHealthCheck time.Time     `json:"last_health_check"`
 	Uptime          time.Duration `json:"uptime"`
 }
 
@@ -157,10 +157,10 @@ func (b *BaseAdapter) GetStatus() AdapterStatus {
 	if !b.started.IsZero() {
 		uptime = time.Since(b.started)
 	}
-	
+
 	return AdapterStatus{
-		State:   b.state,
-		Uptime:  uptime,
+		State:  b.state,
+		Uptime: uptime,
 	}
 }
 

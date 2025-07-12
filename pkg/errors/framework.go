@@ -41,42 +41,42 @@ const (
 // MCPError is our enhanced error type with full context
 type MCPError struct {
 	// Core error information
-	Code        int               `json:"code"`
-	Message     string            `json:"message"`
-	Category    ErrorCategory     `json:"category"`
-	Severity    ErrorSeverity     `json:"severity"`
-	Service     string            `json:"service"`
-	Operation   string            `json:"operation"`
-	
+	Code      int           `json:"code"`
+	Message   string        `json:"message"`
+	Category  ErrorCategory `json:"category"`
+	Severity  ErrorSeverity `json:"severity"`
+	Service   string        `json:"service"`
+	Operation string        `json:"operation"`
+
 	// Context and debugging
 	Context     map[string]interface{} `json:"context"`
-	Suggestions []string              `json:"suggestions"`
-	Actions     []RecoveryAction      `json:"recovery_actions"`
-	
+	Suggestions []string               `json:"suggestions"`
+	Actions     []RecoveryAction       `json:"recovery_actions"`
+
 	// Behavior flags
-	Retryable   bool              `json:"retryable"`
-	UserError   bool              `json:"user_error"`
-	Temporary   bool              `json:"temporary"`
-	
+	Retryable bool `json:"retryable"`
+	UserError bool `json:"user_error"`
+	Temporary bool `json:"temporary"`
+
 	// Tracing and correlation
-	TraceID     string            `json:"trace_id"`
-	SpanID      string            `json:"span_id"`
-	Correlation string            `json:"correlation_id"`
-	
+	TraceID     string `json:"trace_id"`
+	SpanID      string `json:"span_id"`
+	Correlation string `json:"correlation_id"`
+
 	// Error chain
-	Cause       error             `json:"cause,omitempty"`
-	Chain       []*MCPError       `json:"error_chain,omitempty"`
-	
+	Cause error       `json:"cause,omitempty"`
+	Chain []*MCPError `json:"error_chain,omitempty"`
+
 	// Metadata
-	Timestamp   time.Time         `json:"timestamp"`
-	Source      ErrorSource       `json:"source"`
-	Fingerprint string            `json:"fingerprint"`
-	
+	Timestamp   time.Time   `json:"timestamp"`
+	Source      ErrorSource `json:"source"`
+	Fingerprint string      `json:"fingerprint"`
+
 	// Recovery information
-	RecoveryAttempted bool         `json:"recovery_attempted"`
-	RecoveryResult    string       `json:"recovery_result,omitempty"`
-	RetryCount        int          `json:"retry_count"`
-	NextRetryAt       *time.Time   `json:"next_retry_at,omitempty"`
+	RecoveryAttempted bool       `json:"recovery_attempted"`
+	RecoveryResult    string     `json:"recovery_result,omitempty"`
+	RetryCount        int        `json:"retry_count"`
+	NextRetryAt       *time.Time `json:"next_retry_at,omitempty"`
 }
 
 // ErrorSource provides source location information
@@ -94,7 +94,7 @@ type RecoveryAction struct {
 	Automated   bool                   `json:"automated"`
 	Parameters  map[string]interface{} `json:"parameters,omitempty"`
 	Success     bool                   `json:"success"`
-	ExecutedAt  *time.Time            `json:"executed_at,omitempty"`
+	ExecutedAt  *time.Time             `json:"executed_at,omitempty"`
 }
 
 // Error implements the error interface
@@ -109,11 +109,11 @@ func (e *MCPError) Unwrap() error {
 
 // ErrorHandler manages error processing and recovery
 type ErrorHandler struct {
-	logger     logging.Logger
-	metrics    metrics.Metrics
-	recovery   RecoveryManager
-	policies   []ErrorPolicy
-	reporters  []ErrorReporter
+	logger    logging.Logger
+	metrics   metrics.Metrics
+	recovery  RecoveryManager
+	policies  []ErrorPolicy
+	reporters []ErrorReporter
 }
 
 // ErrorPolicy defines how to handle specific error types
@@ -121,21 +121,21 @@ type ErrorPolicy struct {
 	Matches     func(*MCPError) bool
 	MaxRetries  int
 	BackoffFunc func(attempt int) time.Duration
-	Recovery    []string  // Recovery action types to attempt
-	Escalation  []string  // Escalation targets
+	Recovery    []string // Recovery action types to attempt
+	Escalation  []string // Escalation targets
 	Severity    ErrorSeverity
 }
 
 // NewErrorHandler creates a comprehensive error handler
 func NewErrorHandler(logger logging.Logger, metrics metrics.Metrics) *ErrorHandler {
 	eh := &ErrorHandler{
-		logger:   logger.WithComponent("error_handler"),
-		metrics:  metrics,
-		recovery: NewRecoveryManager(logger, metrics),
-		policies: defaultErrorPolicies(),
+		logger:    logger.WithComponent("error_handler"),
+		metrics:   metrics,
+		recovery:  NewRecoveryManager(logger, metrics),
+		policies:  defaultErrorPolicies(),
 		reporters: []ErrorReporter{},
 	}
-	
+
 	return eh
 }
 
@@ -143,37 +143,37 @@ func NewErrorHandler(logger logging.Logger, metrics metrics.Metrics) *ErrorHandl
 func (eh *ErrorHandler) Handle(ctx context.Context, err error, operation string, context map[string]interface{}) *MCPError {
 	// Convert to MCPError if not already
 	mcpErr := eh.toMCPError(err, operation, context)
-	
+
 	// Add trace information
 	mcpErr.TraceID = getTraceID(ctx)
 	mcpErr.SpanID = getSpanID(ctx)
 	mcpErr.Correlation = getCorrelationID(ctx)
-	
+
 	// Apply error policies
 	policy := eh.findPolicy(mcpErr)
 	if policy != nil {
 		mcpErr.Severity = policy.Severity
 		mcpErr.Retryable = policy.MaxRetries > 0
 	}
-	
+
 	// Generate fingerprint for deduplication
 	mcpErr.Fingerprint = eh.generateFingerprint(mcpErr)
-	
+
 	// Attempt recovery if configured
 	if policy != nil && len(policy.Recovery) > 0 {
 		mcpErr.RecoveryAttempted = true
 		mcpErr.RecoveryResult = eh.recovery.AttemptRecovery(ctx, mcpErr, policy.Recovery)
 	}
-	
+
 	// Record metrics
 	eh.recordMetrics(mcpErr)
-	
+
 	// Log with full context
 	eh.logError(mcpErr)
-	
+
 	// Report to external systems
 	eh.reportError(mcpErr)
-	
+
 	return mcpErr
 }
 
@@ -186,7 +186,7 @@ func (eh *ErrorHandler) toMCPError(err error, operation string, context map[stri
 		}
 		return mcpErr
 	}
-	
+
 	// Create new MCPError
 	mcpErr := &MCPError{
 		Code:      -32603, // Default internal error
@@ -199,17 +199,17 @@ func (eh *ErrorHandler) toMCPError(err error, operation string, context map[stri
 		Source:    eh.getErrorSource(),
 		Cause:     err,
 	}
-	
+
 	// Add suggestions based on error type
 	mcpErr.Suggestions = eh.generateSuggestions(mcpErr)
-	
+
 	return mcpErr
 }
 
 // categorizeError automatically categorizes errors
 func (eh *ErrorHandler) categorizeError(err error) ErrorCategory {
 	errStr := strings.ToLower(err.Error())
-	
+
 	switch {
 	case contains(errStr, "timeout", "deadline"):
 		return CategoryTimeout
@@ -235,7 +235,7 @@ func (eh *ErrorHandler) categorizeError(err error) ErrorCategory {
 // assessSeverity determines error severity
 func (eh *ErrorHandler) assessSeverity(err error) ErrorSeverity {
 	errStr := strings.ToLower(err.Error())
-	
+
 	switch {
 	case contains(errStr, "panic", "fatal", "critical", "system"):
 		return SeverityCritical
@@ -251,7 +251,7 @@ func (eh *ErrorHandler) assessSeverity(err error) ErrorSeverity {
 // generateSuggestions creates actionable suggestions
 func (eh *ErrorHandler) generateSuggestions(mcpErr *MCPError) []string {
 	suggestions := []string{}
-	
+
 	switch mcpErr.Category {
 	case CategoryTimeout:
 		suggestions = append(suggestions,
@@ -259,35 +259,35 @@ func (eh *ErrorHandler) generateSuggestions(mcpErr *MCPError) []string {
 			"Check backend service health",
 			"Verify network connectivity",
 			"Consider implementing circuit breaker")
-			
+
 	case CategoryAuthentication:
 		suggestions = append(suggestions,
 			"Verify authentication credentials",
 			"Check token expiration",
 			"Refresh authentication if applicable",
 			"Review authentication configuration")
-			
+
 	case CategoryRateLimit:
 		suggestions = append(suggestions,
 			"Implement exponential backoff",
 			"Reduce request frequency",
 			"Contact administrator for limit increase",
 			"Use request queuing")
-			
+
 	case CategoryValidation:
 		suggestions = append(suggestions,
 			"Check request format and parameters",
 			"Verify required fields are present",
 			"Validate data types and formats",
 			"Review API documentation")
-			
+
 	case CategoryNetwork:
 		suggestions = append(suggestions,
 			"Check network connectivity",
 			"Verify DNS resolution",
 			"Check firewall rules",
 			"Test with alternative endpoints")
-			
+
 	case CategoryUnavailable:
 		suggestions = append(suggestions,
 			"Retry operation after delay",
@@ -295,7 +295,7 @@ func (eh *ErrorHandler) generateSuggestions(mcpErr *MCPError) []string {
 			"Switch to backup service if available",
 			"Implement graceful degradation")
 	}
-	
+
 	return suggestions
 }
 
@@ -303,13 +303,13 @@ func (eh *ErrorHandler) generateSuggestions(mcpErr *MCPError) []string {
 func (eh *ErrorHandler) getErrorSource() ErrorSource {
 	pc, file, line, _ := runtime.Caller(3)
 	fn := runtime.FuncForPC(pc)
-	
+
 	parts := strings.Split(fn.Name(), "/")
 	pkg := ""
 	if len(parts) > 1 {
 		pkg = parts[len(parts)-2]
 	}
-	
+
 	return ErrorSource{
 		Function: fn.Name(),
 		File:     file,
@@ -327,10 +327,10 @@ func (eh *ErrorHandler) recordMetrics(mcpErr *MCPError) {
 		"operation": mcpErr.Operation,
 		"retryable": fmt.Sprintf("%t", mcpErr.Retryable),
 	}
-	
+
 	eh.metrics.Inc("errors_total", labelsToSlice(labels)...)
 	eh.metrics.Inc(fmt.Sprintf("errors_%s_total", mcpErr.Category), labelsToSlice(labels)...)
-	
+
 	if mcpErr.RecoveryAttempted {
 		eh.metrics.Inc("error_recovery_attempts_total", labelsToSlice(labels)...)
 		if mcpErr.RecoveryResult == "success" {
@@ -347,7 +347,7 @@ func (eh *ErrorHandler) logError(mcpErr *MCPError) {
 	} else if mcpErr.Severity == SeverityCritical {
 		logLevel = "error"
 	}
-	
+
 	fields := []interface{}{
 		"error_category", mcpErr.Category,
 		"error_severity", mcpErr.Severity,
@@ -370,7 +370,7 @@ func (eh *ErrorHandler) logError(mcpErr *MCPError) {
 		"source_line", mcpErr.Source.Line,
 		"context", mcpErr.Context,
 	}
-	
+
 	switch logLevel {
 	case "warn":
 		eh.logger.Warn("error_occurred", fields...)
@@ -382,16 +382,16 @@ func (eh *ErrorHandler) logError(mcpErr *MCPError) {
 // Standard error constructors with enhanced context
 func ValidationError(service, operation, message string, context map[string]interface{}) *MCPError {
 	return &MCPError{
-		Code:        -32602,
-		Message:     message,
-		Category:    CategoryValidation,
-		Severity:    SeverityMedium,
-		Service:     service,
-		Operation:   operation,
-		Context:     context,
-		UserError:   true,
-		Retryable:   false,
-		Timestamp:   time.Now(),
+		Code:      -32602,
+		Message:   message,
+		Category:  CategoryValidation,
+		Severity:  SeverityMedium,
+		Service:   service,
+		Operation: operation,
+		Context:   context,
+		UserError: true,
+		Retryable: false,
+		Timestamp: time.Now(),
 		Suggestions: []string{
 			"Check request parameters",
 			"Verify data formats",
@@ -405,7 +405,7 @@ func TimeoutError(service, operation string, timeout time.Duration, context map[
 		context = make(map[string]interface{})
 	}
 	context["timeout_duration"] = timeout.String()
-	
+
 	return &MCPError{
 		Code:      -32001,
 		Message:   fmt.Sprintf("Operation timed out after %v", timeout),
@@ -489,10 +489,10 @@ func getCorrelationID(ctx context.Context) string {
 
 func (eh *ErrorHandler) generateFingerprint(mcpErr *MCPError) string {
 	// Create unique fingerprint for error deduplication
-	data := fmt.Sprintf("%s:%s:%s:%s", 
-		mcpErr.Service, 
-		mcpErr.Category, 
-		mcpErr.Operation, 
+	data := fmt.Sprintf("%s:%s:%s:%s",
+		mcpErr.Service,
+		mcpErr.Category,
+		mcpErr.Operation,
 		mcpErr.Message)
 	// In production, use proper hash function
 	return fmt.Sprintf("%x", len(data))
@@ -516,7 +516,7 @@ func (eh *ErrorHandler) reportError(mcpErr *MCPError) {
 func defaultErrorPolicies() []ErrorPolicy {
 	return []ErrorPolicy{
 		{
-			Matches: func(e *MCPError) bool { return e.Category == CategoryTimeout },
+			Matches:    func(e *MCPError) bool { return e.Category == CategoryTimeout },
 			MaxRetries: 3,
 			BackoffFunc: func(attempt int) time.Duration {
 				return time.Duration(attempt*attempt) * time.Second
@@ -525,7 +525,7 @@ func defaultErrorPolicies() []ErrorPolicy {
 			Severity: SeverityHigh,
 		},
 		{
-			Matches: func(e *MCPError) bool { return e.Category == CategoryRateLimit },
+			Matches:    func(e *MCPError) bool { return e.Category == CategoryRateLimit },
 			MaxRetries: 5,
 			BackoffFunc: func(attempt int) time.Duration {
 				return time.Duration(1<<attempt) * time.Second
@@ -555,8 +555,8 @@ func NewRecoveryManager(logger logging.Logger, metrics metrics.Metrics) Recovery
 		logger:  logger.WithComponent("recovery_manager"),
 		metrics: metrics,
 		actions: map[string]RecoveryActionFunc{
-			"circuit_breaker": circuitBreakerRecovery,
-			"fallback":        fallbackRecovery,
+			"circuit_breaker":     circuitBreakerRecovery,
+			"fallback":            fallbackRecovery,
 			"exponential_backoff": exponentialBackoffRecovery,
 		},
 	}

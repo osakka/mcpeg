@@ -12,16 +12,16 @@ import (
 // RequestContext provides comprehensive request tracking
 type RequestContext struct {
 	context.Context
-	TraceID         string
-	SpanID          string
-	StartTime       time.Time
-	MemoryStart     uint64
-	GoroutineStart  int
-	Logger          logging.Logger
-	Breadcrumbs     []Breadcrumb
-	mu              sync.Mutex
-	cancel          context.CancelFunc
-	memoryMonitor   *MemoryMonitor
+	TraceID        string
+	SpanID         string
+	StartTime      time.Time
+	MemoryStart    uint64
+	GoroutineStart int
+	Logger         logging.Logger
+	Breadcrumbs    []Breadcrumb
+	mu             sync.Mutex
+	cancel         context.CancelFunc
+	memoryMonitor  *MemoryMonitor
 }
 
 // Breadcrumb represents a step in request processing
@@ -36,9 +36,9 @@ type Breadcrumb struct {
 func NewRequestContext(parent context.Context, traceID, spanID string, timeout time.Duration, logger logging.Logger, memMonitor *MemoryMonitor) *RequestContext {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	ctx, cancel := context.WithTimeout(parent, timeout)
-	
+
 	rc := &RequestContext{
 		Context:        ctx,
 		TraceID:        traceID,
@@ -51,19 +51,19 @@ func NewRequestContext(parent context.Context, traceID, spanID string, timeout t
 		memoryMonitor:  memMonitor,
 		Breadcrumbs:    make([]Breadcrumb, 0, 10),
 	}
-	
+
 	// Add initial breadcrumb
 	rc.AddBreadcrumb("request_started", map[string]interface{}{
-		"timeout_seconds": timeout.Seconds(),
-		"initial_memory_mb": float64(m.Alloc) / (1024 * 1024),
+		"timeout_seconds":    timeout.Seconds(),
+		"initial_memory_mb":  float64(m.Alloc) / (1024 * 1024),
 		"initial_goroutines": runtime.NumGoroutine(),
 	})
-	
+
 	rc.Logger.Info("request_context_created",
 		"timeout", timeout,
 		"memory_mb", float64(m.Alloc)/(1024*1024),
 		"goroutines", runtime.NumGoroutine())
-	
+
 	return rc
 }
 
@@ -71,21 +71,21 @@ func NewRequestContext(parent context.Context, traceID, spanID string, timeout t
 func (rc *RequestContext) AddBreadcrumb(operation string, data map[string]interface{}) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	
+
 	breadcrumb := Breadcrumb{
 		Timestamp: time.Now(),
 		Operation: operation,
 		Data:      data,
 	}
-	
+
 	// Calculate duration since last breadcrumb
 	if len(rc.Breadcrumbs) > 0 {
 		lastBC := rc.Breadcrumbs[len(rc.Breadcrumbs)-1]
 		breadcrumb.Duration = breadcrumb.Timestamp.Sub(lastBC.Timestamp)
 	}
-	
+
 	rc.Breadcrumbs = append(rc.Breadcrumbs, breadcrumb)
-	
+
 	rc.Logger.Debug("breadcrumb_added",
 		"operation", operation,
 		"duration_ms", breadcrumb.Duration.Milliseconds(),
@@ -95,21 +95,21 @@ func (rc *RequestContext) AddBreadcrumb(operation string, data map[string]interf
 // Complete finalizes the request context and logs comprehensive metrics
 func (rc *RequestContext) Complete() {
 	defer rc.cancel()
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	duration := time.Since(rc.StartTime)
 	memoryDelta := int64(m.Alloc) - int64(rc.MemoryStart)
 	goroutineDelta := runtime.NumGoroutine() - rc.GoroutineStart
-	
+
 	// Add completion breadcrumb
 	rc.AddBreadcrumb("request_completed", map[string]interface{}{
-		"total_duration_ms": duration.Milliseconds(),
+		"total_duration_ms":  duration.Milliseconds(),
 		"memory_delta_bytes": memoryDelta,
-		"goroutine_delta": goroutineDelta,
+		"goroutine_delta":    goroutineDelta,
 	})
-	
+
 	// Log comprehensive request summary
 	rc.Logger.Info("request_completed",
 		"duration_ms", duration.Milliseconds(),
@@ -119,7 +119,7 @@ func (rc *RequestContext) Complete() {
 		"final_goroutines", runtime.NumGoroutine(),
 		"breadcrumb_count", len(rc.Breadcrumbs),
 		"breadcrumbs", rc.Breadcrumbs)
-	
+
 	// Warn on resource issues
 	if memoryDelta > 10*1024*1024 { // 10MB
 		rc.Logger.Warn("high_request_memory",
@@ -131,7 +131,7 @@ func (rc *RequestContext) Complete() {
 				"Consider streaming large responses",
 			})
 	}
-	
+
 	if goroutineDelta > 0 {
 		rc.Logger.Warn("goroutine_leak",
 			"leaked", goroutineDelta,
@@ -142,7 +142,7 @@ func (rc *RequestContext) Complete() {
 				"Review context cancellation",
 			})
 	}
-	
+
 	if duration > 10*time.Second {
 		rc.Logger.Warn("slow_request",
 			"duration_seconds", duration.Seconds(),
@@ -168,16 +168,16 @@ func (rc *RequestContext) WaitForMemory() error {
 func (rc *RequestContext) LogCheckpoint(name string) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	elapsed := time.Since(rc.StartTime)
 	memoryDelta := int64(m.Alloc) - int64(rc.MemoryStart)
-	
+
 	rc.AddBreadcrumb("checkpoint_"+name, map[string]interface{}{
-		"elapsed_ms": elapsed.Milliseconds(),
+		"elapsed_ms":         elapsed.Milliseconds(),
 		"memory_delta_bytes": memoryDelta,
-		"goroutines": runtime.NumGoroutine(),
+		"goroutines":         runtime.NumGoroutine(),
 	})
-	
+
 	rc.Logger.Debug("request_checkpoint",
 		"checkpoint", name,
 		"elapsed_ms", elapsed.Milliseconds(),
@@ -188,11 +188,11 @@ func (rc *RequestContext) LogCheckpoint(name string) {
 // WithTimeout creates a child context with a new timeout
 func (rc *RequestContext) WithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
 	childCtx, cancel := context.WithTimeout(rc.Context, timeout)
-	
+
 	rc.AddBreadcrumb("child_context_created", map[string]interface{}{
 		"timeout_seconds": timeout.Seconds(),
 	})
-	
+
 	return childCtx, cancel
 }
 
@@ -205,7 +205,7 @@ func (rc *RequestContext) GetElapsedTime() time.Duration {
 func (rc *RequestContext) GetBreadcrumbs() []Breadcrumb {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	
+
 	// Return a copy to prevent external modification
 	result := make([]Breadcrumb, len(rc.Breadcrumbs))
 	copy(result, rc.Breadcrumbs)

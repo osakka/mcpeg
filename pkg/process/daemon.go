@@ -12,13 +12,13 @@ import (
 
 // DaemonConfig configures daemon mode
 type DaemonConfig struct {
-	PIDFile     string
-	LogFile     string
-	WorkingDir  string
-	User        string
-	Group       string
-	Umask       int
-	Background  bool
+	PIDFile    string
+	LogFile    string
+	WorkingDir string
+	User       string
+	Group      string
+	Umask      int
+	Background bool
 }
 
 // DaemonManager handles process daemonization
@@ -154,21 +154,21 @@ func (dm *DaemonManager) openLogFile() (*os.File, error) {
 // filterDaemonArgs removes daemon-specific flags from command arguments
 func (dm *DaemonManager) filterDaemonArgs(args []string) []string {
 	var filtered []string
-	
+
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		
+
 		// Skip daemon-related flags
 		if arg == "--daemon" || arg == "-daemon" {
 			continue
 		}
-		
+
 		// Skip flag with value
 		if arg == "--pid-file" || arg == "--log-file" {
 			i++ // Skip next argument (the value)
 			continue
 		}
-		
+
 		// Skip combined flag=value format
 		if len(arg) > 11 && arg[:11] == "--pid-file=" {
 			continue
@@ -176,10 +176,10 @@ func (dm *DaemonManager) filterDaemonArgs(args []string) []string {
 		if len(arg) > 11 && arg[:11] == "--log-file=" {
 			continue
 		}
-		
+
 		filtered = append(filtered, arg)
 	}
-	
+
 	// Add updated flags for daemon process
 	if dm.config.PIDFile != "" {
 		filtered = append(filtered, "--pid-file", dm.config.PIDFile)
@@ -187,7 +187,7 @@ func (dm *DaemonManager) filterDaemonArgs(args []string) []string {
 	if dm.config.LogFile != "" {
 		filtered = append(filtered, "--log-file", dm.config.LogFile)
 	}
-	
+
 	return filtered
 }
 
@@ -275,13 +275,13 @@ func GetDefaultDaemonConfig() DaemonConfig {
 func (dm *DaemonManager) SetupSignalHandlers(pidManager *PIDManager) {
 	// This would set up additional signal handlers specific to daemon mode
 	// like SIGHUP for config reload, SIGUSR1 for log rotation, etc.
-	
+
 	dm.logger.Info("daemon_signal_handlers_setup")
 }
 
 // DaemonStatus represents the daemon status
 type DaemonStatus struct {
-	Mode       string `json:"mode"`        // "foreground" or "daemon"
+	Mode       string `json:"mode"` // "foreground" or "daemon"
 	PIDFile    string `json:"pid_file"`
 	LogFile    string `json:"log_file"`
 	WorkingDir string `json:"working_dir"`

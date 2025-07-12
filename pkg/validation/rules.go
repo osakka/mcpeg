@@ -34,7 +34,7 @@ func (r *RequiredFieldRule) Validate(ctx context.Context, value interface{}, fie
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	if isEmpty(value) {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -49,7 +49,7 @@ func (r *RequiredFieldRule) Validate(ctx context.Context, value interface{}, fie
 			},
 		})
 	}
-	
+
 	return result
 }
 
@@ -80,7 +80,7 @@ func (r *TypeValidationRule) Validate(ctx context.Context, value interface{}, fi
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	// This is a basic type validation
 	// In practice, you would specify expected types for validation
 	if value != nil {
@@ -89,7 +89,7 @@ func (r *TypeValidationRule) Validate(ctx context.Context, value interface{}, fi
 			"detected_type": valueType,
 		}
 	}
-	
+
 	return result
 }
 
@@ -120,7 +120,7 @@ func (r *RangeValidationRule) Validate(ctx context.Context, value interface{}, f
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	// Check if value is numeric
 	rv := reflect.ValueOf(value)
 	if rv.Kind() >= reflect.Int && rv.Kind() <= reflect.Float64 {
@@ -131,7 +131,7 @@ func (r *RangeValidationRule) Validate(ctx context.Context, value interface{}, f
 			"value":      value,
 		}
 	}
-	
+
 	return result
 }
 
@@ -162,7 +162,7 @@ func (r *FormatValidationRule) Validate(ctx context.Context, value interface{}, 
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	if str, ok := value.(string); ok {
 		// Basic format checks could be added here
 		result.Context = map[string]interface{}{
@@ -170,7 +170,7 @@ func (r *FormatValidationRule) Validate(ctx context.Context, value interface{}, 
 			"is_empty":      str == "",
 		}
 	}
-	
+
 	return result
 }
 
@@ -201,7 +201,7 @@ func (r *MCPMethodRule) Validate(ctx context.Context, value interface{}, field s
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	method, ok := value.(string)
 	if !ok {
 		result.Valid = false
@@ -214,7 +214,7 @@ func (r *MCPMethodRule) Validate(ctx context.Context, value interface{}, field s
 		})
 		return result
 	}
-	
+
 	if method == "" {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -226,7 +226,7 @@ func (r *MCPMethodRule) Validate(ctx context.Context, value interface{}, field s
 		})
 		return result
 	}
-	
+
 	// Validate method naming convention
 	if !isValidMCPMethodName(method) {
 		result.Warnings = append(result.Warnings, ValidationWarning{
@@ -240,7 +240,7 @@ func (r *MCPMethodRule) Validate(ctx context.Context, value interface{}, field s
 			},
 		})
 	}
-	
+
 	return result
 }
 
@@ -271,7 +271,7 @@ func (r *MCPVersionRule) Validate(ctx context.Context, value interface{}, field 
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	version, ok := value.(string)
 	if !ok {
 		result.Valid = false
@@ -284,12 +284,12 @@ func (r *MCPVersionRule) Validate(ctx context.Context, value interface{}, field 
 		})
 		return result
 	}
-	
+
 	// Validate against known MCP versions
 	validVersions := map[string]bool{
 		"2025-03-26": true,
 	}
-	
+
 	if !validVersions[version] {
 		result.Warnings = append(result.Warnings, ValidationWarning{
 			Field:   field,
@@ -302,7 +302,7 @@ func (r *MCPVersionRule) Validate(ctx context.Context, value interface{}, field 
 			},
 		})
 	}
-	
+
 	return result
 }
 
@@ -333,10 +333,10 @@ func (r *MCPParameterRule) Validate(ctx context.Context, value interface{}, fiel
 		Suggestions: make([]string, 0),
 		Performance: ValidationPerformance{FieldsChecked: 1},
 	}
-	
+
 	// Basic parameter validation
 	// Specific validation would depend on the method context
-	
+
 	if value == nil {
 		result.Context = map[string]interface{}{
 			"parameters_present": false,
@@ -347,7 +347,7 @@ func (r *MCPParameterRule) Validate(ctx context.Context, value interface{}, fiel
 			"parameter_type":     reflect.TypeOf(value).String(),
 		}
 	}
-	
+
 	return result
 }
 
@@ -356,7 +356,7 @@ func isEmpty(value interface{}) bool {
 	if value == nil {
 		return true
 	}
-	
+
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {
 	case reflect.String:
@@ -378,22 +378,22 @@ func isValidMCPMethodName(method string) bool {
 	// - Use forward slashes as separators
 	// - Not start or end with slashes
 	// - Not contain spaces
-	
+
 	if method != strings.ToLower(method) {
 		return false
 	}
-	
+
 	if strings.Contains(method, " ") {
 		return false
 	}
-	
+
 	if strings.HasPrefix(method, "/") || strings.HasSuffix(method, "/") {
 		return false
 	}
-	
+
 	if strings.Contains(method, "//") {
 		return false
 	}
-	
+
 	return true
 }

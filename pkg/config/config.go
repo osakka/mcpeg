@@ -31,13 +31,13 @@ func NewLoader(logger logging.Logger) *Loader {
 type LoadOptions struct {
 	// Environment prefix for environment variable overrides
 	EnvPrefix string
-	
+
 	// Whether to allow environment variable overrides
 	AllowEnvOverrides bool
-	
+
 	// Whether to validate the configuration after loading
 	Validate bool
-	
+
 	// Default configuration to merge with loaded config
 	Defaults interface{}
 }
@@ -134,7 +134,7 @@ func (l *Loader) LoadFromDirectory(dirPath string, configs map[string]interface{
 
 		// Extract config name from filename (without extension)
 		configName := strings.TrimSuffix(entry.Name(), ext)
-		
+
 		// Check if we have a target config for this file
 		config, exists := configs[configName]
 		if !exists {
@@ -166,10 +166,10 @@ func (l *Loader) applyEnvironmentOverrides(config interface{}, envPrefix string)
 	if configValue.Kind() != reflect.Ptr || configValue.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("config must be a pointer to a struct")
 	}
-	
+
 	configStruct := configValue.Elem()
 	configType := configStruct.Type()
-	
+
 	envVars := os.Environ()
 	prefix := envPrefix + "_"
 	overrideCount := 0
@@ -218,17 +218,17 @@ func (l *Loader) applyEnvOverride(configStruct reflect.Value, configType reflect
 	// Convert environment variable key to struct field name
 	// Convert UPPER_SNAKE_CASE to PascalCase
 	fieldName := l.envKeyToFieldName(key)
-	
+
 	// Find the field
 	field := configStruct.FieldByName(fieldName)
 	if !field.IsValid() {
 		return fmt.Errorf("field %s not found", fieldName)
 	}
-	
+
 	if !field.CanSet() {
 		return fmt.Errorf("field %s cannot be set", fieldName)
 	}
-	
+
 	// Convert the string value to the appropriate type
 	return l.setFieldValue(field, value, fieldName)
 }
@@ -302,7 +302,7 @@ func (l *Loader) setFieldValue(field reflect.Value, value string, fieldName stri
 	default:
 		return fmt.Errorf("unsupported field type for %s: %s", fieldName, field.Kind())
 	}
-	
+
 	return nil
 }
 
@@ -356,12 +356,12 @@ func GenerateExampleConfig(filePath string, exampleConfig interface{}) error {
 // noOpLogger is a simple logger for cases where we don't have a real logger available
 type noOpLogger struct{}
 
-func (l *noOpLogger) WithComponent(component string) logging.Logger { return l }
+func (l *noOpLogger) WithComponent(component string) logging.Logger  { return l }
 func (l *noOpLogger) WithContext(ctx context.Context) logging.Logger { return l }
-func (l *noOpLogger) WithTraceID(traceID string) logging.Logger     { return l }
-func (l *noOpLogger) WithSpanID(spanID string) logging.Logger       { return l }
-func (l *noOpLogger) Trace(msg string, fields ...interface{})       {}
-func (l *noOpLogger) Debug(msg string, fields ...interface{})       {}
-func (l *noOpLogger) Info(msg string, fields ...interface{})        {}
-func (l *noOpLogger) Warn(msg string, fields ...interface{})        {}
-func (l *noOpLogger) Error(msg string, fields ...interface{})       {}
+func (l *noOpLogger) WithTraceID(traceID string) logging.Logger      { return l }
+func (l *noOpLogger) WithSpanID(spanID string) logging.Logger        { return l }
+func (l *noOpLogger) Trace(msg string, fields ...interface{})        {}
+func (l *noOpLogger) Debug(msg string, fields ...interface{})        {}
+func (l *noOpLogger) Info(msg string, fields ...interface{})         {}
+func (l *noOpLogger) Warn(msg string, fields ...interface{})         {}
+func (l *noOpLogger) Error(msg string, fields ...interface{})        {}

@@ -11,77 +11,77 @@ import (
 	"sync"
 	"time"
 
+	"github.com/osakka/mcpeg/pkg/errors"
+	"github.com/osakka/mcpeg/pkg/health"
 	"github.com/osakka/mcpeg/pkg/logging"
 	"github.com/osakka/mcpeg/pkg/metrics"
 	"github.com/osakka/mcpeg/pkg/validation"
-	"github.com/osakka/mcpeg/pkg/health"
-	"github.com/osakka/mcpeg/pkg/errors"
 )
 
 // ServiceRegistry manages all registered MCP service adapters
 type ServiceRegistry struct {
-	services    map[string]*RegisteredService
-	byType      map[string][]*RegisteredService
+	services     map[string]*RegisteredService
+	byType       map[string][]*RegisteredService
 	capabilities map[string]*ServiceCapabilities
-	mutex       sync.RWMutex
-	
-	logger      logging.Logger
-	metrics     metrics.Metrics
-	validator   *validation.Validator
-	health      *health.HealthManager
-	
-	config      RegistryConfig
-	discovery   *ServiceDiscovery
+	mutex        sync.RWMutex
+
+	logger    logging.Logger
+	metrics   metrics.Metrics
+	validator *validation.Validator
+	health    *health.HealthManager
+
+	config       RegistryConfig
+	discovery    *ServiceDiscovery
 	loadBalancer *LoadBalancer
-	
+
 	// Circuit breaker configuration
 	maxFailures int
-	
+
 	// Background monitoring
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // RegisteredService represents a service registered with the gateway
 type RegisteredService struct {
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Type         string                 `json:"type"`
-	Version      string                 `json:"version"`
-	Description  string                 `json:"description,omitempty"`
-	
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+
 	// Network configuration
-	Endpoint     string                 `json:"endpoint"`
-	Protocol     string                 `json:"protocol"`
-	
+	Endpoint string `json:"endpoint"`
+	Protocol string `json:"protocol"`
+
 	// Service capabilities
-	Tools        []ToolDefinition       `json:"tools"`
-	Resources    []ResourceDefinition   `json:"resources"`
-	Prompts      []PromptDefinition     `json:"prompts"`
-	
+	Tools     []ToolDefinition     `json:"tools"`
+	Resources []ResourceDefinition `json:"resources"`
+	Prompts   []PromptDefinition   `json:"prompts"`
+
 	// Operational status
-	Status       ServiceStatus          `json:"status"`
-	Health       HealthStatus           `json:"health"`
-	LastSeen     time.Time              `json:"last_seen"`
-	RegisteredAt time.Time              `json:"registered_at"`
-	
+	Status       ServiceStatus `json:"status"`
+	Health       HealthStatus  `json:"health"`
+	LastSeen     time.Time     `json:"last_seen"`
+	RegisteredAt time.Time     `json:"registered_at"`
+
 	// Configuration and metadata
 	Configuration map[string]interface{} `json:"configuration,omitempty"`
-	Metadata     map[string]interface{}  `json:"metadata,omitempty"`
-	Tags         []string               `json:"tags,omitempty"`
-	
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	Tags          []string               `json:"tags,omitempty"`
+
 	// Performance metrics
-	Metrics      ServiceMetrics         `json:"metrics"`
-	
+	Metrics ServiceMetrics `json:"metrics"`
+
 	// Security and access control
-	Security     ServiceSecurity        `json:"security"`
-	
+	Security ServiceSecurity `json:"security"`
+
 	// Runtime state
-	mutex        sync.RWMutex
-	client       *http.Client
-	lastHealth   time.Time
-	
+	mutex      sync.RWMutex
+	client     *http.Client
+	lastHealth time.Time
+
 	// Circuit breaker state
 	FailureCount int `json:"failure_count"`
 }
@@ -119,20 +119,20 @@ type ServiceCapabilities struct {
 
 // ToolCapabilities defines tool-related capabilities
 type ToolCapabilities struct {
-	Count           int      `json:"count"`
-	Categories      []string `json:"categories"`
-	SupportsAsync   bool     `json:"supports_async"`
-	MaxConcurrency  int      `json:"max_concurrency"`
-	SupportsStreaming bool   `json:"supports_streaming"`
+	Count             int      `json:"count"`
+	Categories        []string `json:"categories"`
+	SupportsAsync     bool     `json:"supports_async"`
+	MaxConcurrency    int      `json:"max_concurrency"`
+	SupportsStreaming bool     `json:"supports_streaming"`
 }
 
 // ResourceCapabilities defines resource-related capabilities
 type ResourceCapabilities struct {
-	Count             int      `json:"count"`
-	Types             []string `json:"types"`
-	SupportsSubscription bool  `json:"supports_subscription"`
-	SupportsStreaming bool     `json:"supports_streaming"`
-	SupportsWatch     bool     `json:"supports_watch"`
+	Count                int      `json:"count"`
+	Types                []string `json:"types"`
+	SupportsSubscription bool     `json:"supports_subscription"`
+	SupportsStreaming    bool     `json:"supports_streaming"`
+	SupportsWatch        bool     `json:"supports_watch"`
 }
 
 // PromptCapabilities defines prompt-related capabilities
@@ -145,13 +145,13 @@ type PromptCapabilities struct {
 
 // ToolDefinition defines a tool provided by a service
 type ToolDefinition struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Category    string                 `json:"category,omitempty"`
-	InputSchema map[string]interface{} `json:"input_schema"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Category     string                 `json:"category,omitempty"`
+	InputSchema  map[string]interface{} `json:"input_schema"`
 	OutputSchema map[string]interface{} `json:"output_schema,omitempty"`
-	Examples    []ToolExample          `json:"examples,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Examples     []ToolExample          `json:"examples,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ResourceDefinition defines a resource provided by a service
@@ -213,59 +213,59 @@ type ServiceMetrics struct {
 
 // ServiceSecurity defines security settings for a service
 type ServiceSecurity struct {
-	AuthRequired   bool     `json:"auth_required"`
-	AllowedClients []string `json:"allowed_clients,omitempty"`
-	RequiredScopes []string `json:"required_scopes,omitempty"`
+	AuthRequired   bool       `json:"auth_required"`
+	AllowedClients []string   `json:"allowed_clients,omitempty"`
+	RequiredScopes []string   `json:"required_scopes,omitempty"`
 	RateLimit      *RateLimit `json:"rate_limit,omitempty"`
 }
 
 // RateLimit defines rate limiting for a service
 type RateLimit struct {
-	RequestsPerMinute int `json:"requests_per_minute"`
-	Burst            int `json:"burst"`
-	WindowSize       time.Duration `json:"window_size"`
+	RequestsPerMinute int           `json:"requests_per_minute"`
+	Burst             int           `json:"burst"`
+	WindowSize        time.Duration `json:"window_size"`
 }
 
 // RegistryConfig configures the service registry
 type RegistryConfig struct {
 	// Discovery settings
-	DiscoveryEnabled     bool          `yaml:"discovery_enabled"`
-	DiscoveryInterval    time.Duration `yaml:"discovery_interval"`
-	HealthCheckInterval  time.Duration `yaml:"health_check_interval"`
-	
+	DiscoveryEnabled    bool          `yaml:"discovery_enabled"`
+	DiscoveryInterval   time.Duration `yaml:"discovery_interval"`
+	HealthCheckInterval time.Duration `yaml:"health_check_interval"`
+
 	// Service validation
-	ValidateOnRegister   bool          `yaml:"validate_on_register"`
-	RequireHealthCheck   bool          `yaml:"require_health_check"`
-	MaxRegistrationTime  time.Duration `yaml:"max_registration_time"`
-	
+	ValidateOnRegister  bool          `yaml:"validate_on_register"`
+	RequireHealthCheck  bool          `yaml:"require_health_check"`
+	MaxRegistrationTime time.Duration `yaml:"max_registration_time"`
+
 	// Load balancing
-	LoadBalancingEnabled bool          `yaml:"load_balancing_enabled"`
-	LoadBalancingStrategy string       `yaml:"load_balancing_strategy"`
-	
+	LoadBalancingEnabled  bool   `yaml:"load_balancing_enabled"`
+	LoadBalancingStrategy string `yaml:"load_balancing_strategy"`
+
 	// Security
-	RequireAuthentication bool         `yaml:"require_authentication"`
-	AllowSelfRegistration bool         `yaml:"allow_self_registration"`
-	
+	RequireAuthentication bool `yaml:"require_authentication"`
+	AllowSelfRegistration bool `yaml:"allow_self_registration"`
+
 	// Cleanup and maintenance
 	InactiveServiceTimeout time.Duration `yaml:"inactive_service_timeout"`
-	CleanupInterval       time.Duration  `yaml:"cleanup_interval"`
+	CleanupInterval        time.Duration `yaml:"cleanup_interval"`
 }
 
 // ServiceRegistrationRequest represents a service registration request
 type ServiceRegistrationRequest struct {
-	Name         string                 `json:"name" validate:"required"`
-	Type         string                 `json:"type" validate:"required"`
-	Version      string                 `json:"version" validate:"required"`
-	Description  string                 `json:"description,omitempty"`
-	Endpoint     string                 `json:"endpoint" validate:"required,url"`
-	Protocol     string                 `json:"protocol" validate:"required"`
-	Tools        []ToolDefinition       `json:"tools,omitempty"`
-	Resources    []ResourceDefinition   `json:"resources,omitempty"`
-	Prompts      []PromptDefinition     `json:"prompts,omitempty"`
+	Name          string                 `json:"name" validate:"required"`
+	Type          string                 `json:"type" validate:"required"`
+	Version       string                 `json:"version" validate:"required"`
+	Description   string                 `json:"description,omitempty"`
+	Endpoint      string                 `json:"endpoint" validate:"required,url"`
+	Protocol      string                 `json:"protocol" validate:"required"`
+	Tools         []ToolDefinition       `json:"tools,omitempty"`
+	Resources     []ResourceDefinition   `json:"resources,omitempty"`
+	Prompts       []PromptDefinition     `json:"prompts,omitempty"`
 	Configuration map[string]interface{} `json:"configuration,omitempty"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-	Tags         []string               `json:"tags,omitempty"`
-	Security     ServiceSecurity        `json:"security,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	Tags          []string               `json:"tags,omitempty"`
+	Security      ServiceSecurity        `json:"security,omitempty"`
 }
 
 // ServiceRegistrationResponse represents the response to a registration request
@@ -288,7 +288,7 @@ type GatewayInfo struct {
 // NewServiceRegistry creates a new service registry
 func NewServiceRegistry(logger logging.Logger, metrics metrics.Metrics, validator *validation.Validator, healthManager *health.HealthManager) *ServiceRegistry {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	registry := &ServiceRegistry{
 		services:     make(map[string]*RegisteredService),
 		byType:       make(map[string][]*RegisteredService),
@@ -302,14 +302,14 @@ func NewServiceRegistry(logger logging.Logger, metrics metrics.Metrics, validato
 		ctx:          ctx,
 		cancel:       cancel,
 	}
-	
+
 	// Initialize discovery and load balancing
 	registry.discovery = NewServiceDiscovery(registry, logger, metrics)
 	registry.loadBalancer = NewLoadBalancer(registry, logger, metrics)
-	
+
 	// Start background processes
 	registry.startBackgroundProcesses()
-	
+
 	return registry
 }
 
@@ -321,7 +321,7 @@ func (sr *ServiceRegistry) GetLoadBalancer() *LoadBalancer {
 // RegisterService registers a new service with the gateway
 func (sr *ServiceRegistry) RegisterService(ctx context.Context, req ServiceRegistrationRequest) (*ServiceRegistrationResponse, error) {
 	start := time.Now()
-	
+
 	sr.logger.Info("service_registration_started",
 		"name", req.Name,
 		"type", req.Type,
@@ -330,79 +330,79 @@ func (sr *ServiceRegistry) RegisterService(ctx context.Context, req ServiceRegis
 		"tools_count", len(req.Tools),
 		"resources_count", len(req.Resources),
 		"prompts_count", len(req.Prompts))
-	
+
 	// Validate registration request
 	if sr.config.ValidateOnRegister {
 		if result := sr.validator.ValidateStruct(ctx, req); !result.Valid {
-			return nil, errors.ValidationError("service_registry", "register_service", 
+			return nil, errors.ValidationError("service_registry", "register_service",
 				"Invalid registration request", map[string]interface{}{
-					"errors": result.Errors,
+					"errors":   result.Errors,
 					"warnings": result.Warnings,
-					"request": req,
+					"request":  req,
 				})
 		}
 	}
-	
+
 	// Generate unique service ID
 	serviceID := sr.generateServiceID(req.Name, req.Type)
-	
+
 	// Check if service already exists
 	if existing := sr.GetService(serviceID); existing != nil {
 		return nil, errors.ValidationError("service_registry", "register_service",
 			fmt.Sprintf("Service already registered: %s", serviceID), map[string]interface{}{
 				"existing_service": existing,
-				"new_request": req,
+				"new_request":      req,
 			})
 	}
-	
+
 	// Create registered service
 	service := &RegisteredService{
-		ID:           serviceID,
-		Name:         req.Name,
-		Type:         req.Type,
-		Version:      req.Version,
-		Description:  req.Description,
-		Endpoint:     req.Endpoint,
-		Protocol:     req.Protocol,
-		Tools:        req.Tools,
-		Resources:    req.Resources,
-		Prompts:      req.Prompts,
-		Status:       StatusRegistering,
-		Health:       HealthUnknown,
-		RegisteredAt: time.Now(),
-		LastSeen:     time.Now(),
+		ID:            serviceID,
+		Name:          req.Name,
+		Type:          req.Type,
+		Version:       req.Version,
+		Description:   req.Description,
+		Endpoint:      req.Endpoint,
+		Protocol:      req.Protocol,
+		Tools:         req.Tools,
+		Resources:     req.Resources,
+		Prompts:       req.Prompts,
+		Status:        StatusRegistering,
+		Health:        HealthUnknown,
+		RegisteredAt:  time.Now(),
+		LastSeen:      time.Now(),
 		Configuration: req.Configuration,
-		Metadata:     req.Metadata,
-		Tags:         req.Tags,
-		Security:     req.Security,
-		client:       &http.Client{Timeout: 30 * time.Second},
+		Metadata:      req.Metadata,
+		Tags:          req.Tags,
+		Security:      req.Security,
+		client:        &http.Client{Timeout: 30 * time.Second},
 	}
-	
+
 	// Perform health check if required
 	if sr.config.RequireHealthCheck {
 		if err := sr.performHealthCheck(ctx, service); err != nil {
 			return nil, errors.UnavailableError("service_registry", "register_service", err, map[string]interface{}{
-				"service_id": serviceID,
-				"endpoint": req.Endpoint,
+				"service_id":         serviceID,
+				"endpoint":           req.Endpoint,
 				"health_check_error": err.Error(),
 			})
 		}
 	}
-	
+
 	// Add service to registry
 	sr.mutex.Lock()
 	sr.services[serviceID] = service
 	sr.addServiceByType(service)
 	sr.updateCapabilities(service)
 	sr.mutex.Unlock()
-	
+
 	// Update service status
 	service.Status = StatusActive
 	service.Health = HealthHealthy
-	
+
 	// Record metrics
 	sr.recordRegistrationMetrics(service, time.Since(start))
-	
+
 	// Create response
 	response := &ServiceRegistrationResponse{
 		ServiceID: serviceID,
@@ -410,13 +410,13 @@ func (sr *ServiceRegistry) RegisterService(ctx context.Context, req ServiceRegis
 		Message:   "Service registered successfully",
 		Timestamp: time.Now(),
 		GatewayInfo: GatewayInfo{
-			Version:            "1.0.0",
-			SupportedProtocols: []string{"http", "https"},
-			Features:           []string{"load_balancing", "health_checks", "metrics"},
+			Version:             "1.0.0",
+			SupportedProtocols:  []string{"http", "https"},
+			Features:            []string{"load_balancing", "health_checks", "metrics"},
 			HealthCheckEndpoint: "/health",
 		},
 	}
-	
+
 	sr.logger.Info("service_registration_completed",
 		"service_id", serviceID,
 		"name", req.Name,
@@ -427,7 +427,7 @@ func (sr *ServiceRegistry) RegisterService(ctx context.Context, req ServiceRegis
 		"health", service.Health,
 		"registration_time", time.Since(start),
 		"total_services", len(sr.services))
-	
+
 	return response, nil
 }
 
@@ -435,7 +435,7 @@ func (sr *ServiceRegistry) RegisterService(ctx context.Context, req ServiceRegis
 func (sr *ServiceRegistry) GetService(serviceID string) *RegisteredService {
 	sr.mutex.RLock()
 	defer sr.mutex.RUnlock()
-	
+
 	return sr.services[serviceID]
 }
 
@@ -443,7 +443,7 @@ func (sr *ServiceRegistry) GetService(serviceID string) *RegisteredService {
 func (sr *ServiceRegistry) GetServicesByType(serviceType string) []*RegisteredService {
 	sr.mutex.RLock()
 	defer sr.mutex.RUnlock()
-	
+
 	services := sr.byType[serviceType]
 	result := make([]*RegisteredService, len(services))
 	copy(result, services)
@@ -454,7 +454,7 @@ func (sr *ServiceRegistry) GetServicesByType(serviceType string) []*RegisteredSe
 func (sr *ServiceRegistry) GetAllServices() map[string]*RegisteredService {
 	sr.mutex.RLock()
 	defer sr.mutex.RUnlock()
-	
+
 	result := make(map[string]*RegisteredService)
 	for id, service := range sr.services {
 		result[id] = service
@@ -466,7 +466,7 @@ func (sr *ServiceRegistry) GetAllServices() map[string]*RegisteredService {
 func (sr *ServiceRegistry) GetHealthyServices() []*RegisteredService {
 	sr.mutex.RLock()
 	defer sr.mutex.RUnlock()
-	
+
 	var healthy []*RegisteredService
 	for _, service := range sr.services {
 		if service.Health == HealthHealthy && service.Status == StatusActive {
@@ -479,10 +479,10 @@ func (sr *ServiceRegistry) GetHealthyServices() []*RegisteredService {
 // UnregisterService removes a service from the registry
 func (sr *ServiceRegistry) UnregisterService(ctx context.Context, serviceID string) error {
 	sr.logger.Info("service_unregistration_started", "service_id", serviceID)
-	
+
 	sr.mutex.Lock()
 	defer sr.mutex.Unlock()
-	
+
 	service, exists := sr.services[serviceID]
 	if !exists {
 		return errors.ValidationError("service_registry", "unregister_service",
@@ -490,22 +490,22 @@ func (sr *ServiceRegistry) UnregisterService(ctx context.Context, serviceID stri
 				"service_id": serviceID,
 			})
 	}
-	
+
 	// Update service status to draining
 	service.Status = StatusDraining
-	
+
 	// Remove from registry
 	delete(sr.services, serviceID)
 	sr.removeServiceByType(service)
 	sr.updateCapabilitiesAfterRemoval(service)
-	
+
 	sr.logger.Info("service_unregistration_completed",
 		"service_id", serviceID,
 		"name", service.Name,
 		"type", service.Type,
 		"uptime", time.Since(service.RegisteredAt),
 		"remaining_services", len(sr.services))
-	
+
 	return nil
 }
 
@@ -513,7 +513,7 @@ func (sr *ServiceRegistry) UnregisterService(ctx context.Context, serviceID stri
 func (sr *ServiceRegistry) GetCapabilities() map[string]*ServiceCapabilities {
 	sr.mutex.RLock()
 	defer sr.mutex.RUnlock()
-	
+
 	result := make(map[string]*ServiceCapabilities)
 	for serviceType, caps := range sr.capabilities {
 		result[serviceType] = caps
@@ -528,10 +528,10 @@ func (sr *ServiceRegistry) SelectService(serviceType string, criteria SelectionC
 		return nil, errors.ValidationError("service_registry", "select_service",
 			fmt.Sprintf("No services available for type: %s", serviceType), map[string]interface{}{
 				"service_type": serviceType,
-				"criteria": criteria,
+				"criteria":     criteria,
 			})
 	}
-	
+
 	// Filter healthy services
 	var healthy []*RegisteredService
 	for _, service := range services {
@@ -539,16 +539,16 @@ func (sr *ServiceRegistry) SelectService(serviceType string, criteria SelectionC
 			healthy = append(healthy, service)
 		}
 	}
-	
+
 	if len(healthy) == 0 {
-		return nil, errors.UnavailableError("service_registry", "select_service", 
+		return nil, errors.UnavailableError("service_registry", "select_service",
 			fmt.Errorf("no healthy services available"), map[string]interface{}{
-				"service_type": serviceType,
+				"service_type":   serviceType,
 				"total_services": len(services),
-				"criteria": criteria,
+				"criteria":       criteria,
 			})
 	}
-	
+
 	// Use load balancer to select service
 	return sr.loadBalancer.SelectService(healthy, criteria)
 }
@@ -556,9 +556,9 @@ func (sr *ServiceRegistry) SelectService(serviceType string, criteria SelectionC
 // SelectionCriteria defines criteria for service selection
 type SelectionCriteria struct {
 	PreferredRegion string                 `json:"preferred_region,omitempty"`
-	Tags           []string               `json:"tags,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
-	LoadBalancing  string                 `json:"load_balancing,omitempty"`
+	Tags            []string               `json:"tags,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	LoadBalancing   string                 `json:"load_balancing,omitempty"`
 }
 
 // TriggerDiscovery manually triggers service discovery
@@ -566,7 +566,7 @@ func (sr *ServiceRegistry) TriggerDiscovery(ctx context.Context) error {
 	if sr.discovery == nil {
 		return fmt.Errorf("service discovery not enabled")
 	}
-	
+
 	sr.logger.Info("manual_service_discovery_triggered")
 	return sr.discovery.DiscoverServices(ctx)
 }
@@ -576,17 +576,17 @@ func (sr *ServiceRegistry) GetDiscoveredServices() map[string]*DiscoveredService
 	if sr.discovery == nil {
 		return make(map[string]*DiscoveredService)
 	}
-	
+
 	return sr.discovery.GetDiscoveredServices()
 }
 
 // Shutdown gracefully shuts down the service registry
 func (sr *ServiceRegistry) Shutdown() error {
 	sr.logger.Info("service_registry_shutting_down")
-	
+
 	sr.cancel()
 	sr.wg.Wait()
-	
+
 	sr.logger.Info("service_registry_shutdown_complete")
 	return nil
 }
@@ -619,7 +619,7 @@ func (sr *ServiceRegistry) updateCapabilities(service *RegisteredService) {
 		caps = &ServiceCapabilities{}
 		sr.capabilities[service.Type] = caps
 	}
-	
+
 	// Update tool capabilities
 	caps.Tools.Count += len(service.Tools)
 	for _, tool := range service.Tools {
@@ -627,7 +627,7 @@ func (sr *ServiceRegistry) updateCapabilities(service *RegisteredService) {
 			caps.Tools.Categories = append(caps.Tools.Categories, tool.Category)
 		}
 	}
-	
+
 	// Update resource capabilities
 	caps.Resources.Count += len(service.Resources)
 	for _, resource := range service.Resources {
@@ -635,7 +635,7 @@ func (sr *ServiceRegistry) updateCapabilities(service *RegisteredService) {
 			caps.Resources.Types = append(caps.Resources.Types, resource.Type)
 		}
 	}
-	
+
 	// Update prompt capabilities
 	caps.Prompts.Count += len(service.Prompts)
 	for _, prompt := range service.Prompts {
@@ -658,7 +658,7 @@ func (sr *ServiceRegistry) updateCapabilitiesAfterRemoval(service *RegisteredSer
 
 func (sr *ServiceRegistry) performHealthCheck(ctx context.Context, service *RegisteredService) error {
 	startTime := time.Now()
-	sr.logger.Debug("service_health_check_started", 
+	sr.logger.Debug("service_health_check_started",
 		"service_id", service.ID,
 		"service_name", service.Name,
 		"endpoint", service.Endpoint)
@@ -683,7 +683,7 @@ func (sr *ServiceRegistry) performHealthCheck(ctx context.Context, service *Regi
 
 	// Construct health check URL
 	healthURL := sr.buildHealthCheckURL(service)
-	
+
 	// Create HTTP request with context
 	req, err := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
 	if err != nil {
@@ -697,7 +697,7 @@ func (sr *ServiceRegistry) performHealthCheck(ctx context.Context, service *Regi
 	// Set user agent and other headers
 	req.Header.Set("User-Agent", "MCPEG-HealthChecker/1.0")
 	req.Header.Set("Accept", "application/json, text/plain, */*")
-	
+
 	// Add authentication if configured
 	if err := sr.addHealthCheckAuth(req, service); err != nil {
 		sr.logger.Warn("service_health_check_auth_failed",
@@ -824,18 +824,18 @@ func (sr *ServiceRegistry) getExpectedHealthStatus(service *RegisteredService) [
 func (sr *ServiceRegistry) parseStatusCodes(statusStr string) []int {
 	var codes []int
 	parts := strings.Split(statusStr, ",")
-	
+
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if code, err := strconv.Atoi(part); err == nil {
 			codes = append(codes, code)
 		}
 	}
-	
+
 	if len(codes) == 0 {
 		return []int{200} // fallback
 	}
-	
+
 	return codes
 }
 
@@ -874,7 +874,7 @@ func (sr *ServiceRegistry) validateHealthResponseContent(body []byte, service *R
 // validateJSONHealthResponse validates JSON health check responses
 func (sr *ServiceRegistry) validateJSONHealthResponse(body []byte, service *RegisteredService) error {
 	var healthResp map[string]interface{}
-	
+
 	if err := json.Unmarshal(body, &healthResp); err != nil {
 		// JSON parsing failed, but that's OK for health checks
 		sr.logger.Debug("service_health_response_json_parse_failed",
@@ -889,7 +889,7 @@ func (sr *ServiceRegistry) validateJSONHealthResponse(body []byte, service *Regi
 		if expectedJSONStatus == "" {
 			expectedJSONStatus = "ok,healthy,up" // common status values
 		}
-		
+
 		validStatuses := strings.Split(expectedJSONStatus, ",")
 		statusValid := false
 		for _, validStatus := range validStatuses {
@@ -898,7 +898,7 @@ func (sr *ServiceRegistry) validateJSONHealthResponse(body []byte, service *Regi
 				break
 			}
 		}
-		
+
 		if !statusValid {
 			return fmt.Errorf("JSON status field indicates unhealthy: %s", status)
 		}
@@ -982,7 +982,7 @@ func (sr *ServiceRegistry) recordRegistrationMetrics(service *RegisteredService,
 		"service_type", service.Type,
 		"status", string(service.Status),
 	}
-	
+
 	sr.metrics.Inc("service_registrations_total", labels...)
 	sr.metrics.Set("service_registration_duration_seconds", duration.Seconds(), labels...)
 	sr.metrics.Set("services_registered_total", float64(len(sr.services)))
@@ -993,10 +993,10 @@ func (sr *ServiceRegistry) startBackgroundProcesses() {
 		sr.wg.Add(1)
 		go sr.runDiscovery()
 	}
-	
+
 	sr.wg.Add(1)
 	go sr.runHealthChecks()
-	
+
 	sr.wg.Add(1)
 	go sr.runCleanup()
 }
@@ -1005,7 +1005,7 @@ func (sr *ServiceRegistry) runDiscovery() {
 	defer sr.wg.Done()
 	ticker := time.NewTicker(sr.config.DiscoveryInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -1020,7 +1020,7 @@ func (sr *ServiceRegistry) runHealthChecks() {
 	defer sr.wg.Done()
 	ticker := time.NewTicker(sr.config.HealthCheckInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -1035,7 +1035,7 @@ func (sr *ServiceRegistry) runCleanup() {
 	defer sr.wg.Done()
 	ticker := time.NewTicker(sr.config.CleanupInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -1048,7 +1048,7 @@ func (sr *ServiceRegistry) runCleanup() {
 
 func (sr *ServiceRegistry) performAllHealthChecks() {
 	services := sr.GetAllServices()
-	
+
 	for _, service := range services {
 		if err := sr.performHealthCheck(sr.ctx, service); err != nil {
 			sr.logger.Warn("service_health_check_failed",
@@ -1056,7 +1056,7 @@ func (sr *ServiceRegistry) performAllHealthChecks() {
 				"name", service.Name,
 				"endpoint", service.Endpoint,
 				"error", err)
-			
+
 			service.Health = HealthUnhealthy
 		}
 	}
@@ -1065,9 +1065,9 @@ func (sr *ServiceRegistry) performAllHealthChecks() {
 func (sr *ServiceRegistry) cleanupInactiveServices() {
 	sr.mutex.Lock()
 	defer sr.mutex.Unlock()
-	
+
 	cutoff := time.Now().Add(-sr.config.InactiveServiceTimeout)
-	
+
 	for id, service := range sr.services {
 		if service.LastSeen.Before(cutoff) {
 			sr.logger.Info("removing_inactive_service",
@@ -1075,7 +1075,7 @@ func (sr *ServiceRegistry) cleanupInactiveServices() {
 				"name", service.Name,
 				"last_seen", service.LastSeen,
 				"inactive_duration", time.Since(service.LastSeen))
-			
+
 			delete(sr.services, id)
 			sr.removeServiceByType(service)
 		}
@@ -1095,7 +1095,7 @@ func defaultRegistryConfig() RegistryConfig {
 		RequireAuthentication:  false,
 		AllowSelfRegistration:  true,
 		InactiveServiceTimeout: 300 * time.Second,
-		CleanupInterval:       120 * time.Second,
+		CleanupInterval:        120 * time.Second,
 	}
 }
 

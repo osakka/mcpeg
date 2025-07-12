@@ -24,7 +24,7 @@ type GitService struct {
 func NewGitService() *GitService {
 	return &GitService{
 		BasePlugin: NewBasePlugin(
-			"git", 
+			"git",
 			"1.0.0",
 			"Git version control operations for development workflows",
 		),
@@ -37,27 +37,27 @@ func (gs *GitService) Initialize(ctx context.Context, config PluginConfig) error
 	if err := gs.BasePlugin.Initialize(ctx, config); err != nil {
 		return err
 	}
-	
+
 	// Set working directory
 	gs.workingDir = "."
 	if configWorkDir, ok := config.Config["working_dir"].(string); ok {
 		gs.workingDir = configWorkDir
 	}
-	
+
 	// Set git path if configured
 	if configGitPath, ok := config.Config["git_path"].(string); ok {
 		gs.gitPath = configGitPath
 	}
-	
+
 	// Verify git is available
 	if err := gs.verifyGitAvailable(); err != nil {
 		return fmt.Errorf("git not available: %w", err)
 	}
-	
+
 	gs.logger.Info("git_service_initialized",
 		"working_dir", gs.workingDir,
 		"git_path", gs.gitPath)
-	
+
 	return nil
 }
 
@@ -355,7 +355,7 @@ func (gs *GitService) CallTool(ctx context.Context, name string, args json.RawMe
 	defer func() {
 		gs.LogToolCall(name, time.Since(start), nil)
 	}()
-	
+
 	switch name {
 	case "git_status":
 		return gs.handleStatus(args)
@@ -384,7 +384,7 @@ func (gs *GitService) ReadResource(ctx context.Context, uri string) (interface{}
 	defer func() {
 		gs.LogResourceAccess(uri, time.Since(start), nil)
 	}()
-	
+
 	switch uri {
 	case "git_repo_info":
 		return gs.getRepoInfo()
@@ -418,25 +418,25 @@ func (gs *GitService) handleStatus(args json.RawMessage) (interface{}, error) {
 	var req struct {
 		Porcelain bool `json:"porcelain"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	gitArgs := []string{"status"}
 	if req.Porcelain {
 		gitArgs = append(gitArgs, "--porcelain")
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_status_operations_total")
-	
+
 	return map[string]interface{}{
-		"output": output,
+		"output":    output,
 		"porcelain": req.Porcelain,
 	}, nil
 }
@@ -447,36 +447,36 @@ func (gs *GitService) handleDiff(args json.RawMessage) (interface{}, error) {
 		File   *string `json:"file,omitempty"`
 		Commit *string `json:"commit,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	gitArgs := []string{"diff"}
-	
+
 	if req.Staged {
 		gitArgs = append(gitArgs, "--staged")
 	}
-	
+
 	if req.Commit != nil {
 		gitArgs = append(gitArgs, *req.Commit)
 	}
-	
+
 	if req.File != nil {
 		gitArgs = append(gitArgs, "--", *req.File)
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_diff_operations_total")
-	
+
 	return map[string]interface{}{
-		"diff": output,
+		"diff":   output,
 		"staged": req.Staged,
-		"file": req.File,
+		"file":   req.File,
 	}, nil
 }
 
@@ -485,13 +485,13 @@ func (gs *GitService) handleAdd(args json.RawMessage) (interface{}, error) {
 		Files []string `json:"files,omitempty"`
 		All   bool     `json:"all"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	gitArgs := []string{"add"}
-	
+
 	if req.All {
 		gitArgs = append(gitArgs, "-A")
 	} else if len(req.Files) > 0 {
@@ -499,17 +499,17 @@ func (gs *GitService) handleAdd(args json.RawMessage) (interface{}, error) {
 	} else {
 		return nil, fmt.Errorf("must specify files or set all=true")
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_add_operations_total")
-	
+
 	return map[string]interface{}{
-		"success": true,
-		"output": output,
+		"success":     true,
+		"output":      output,
 		"files_added": len(req.Files),
 	}, nil
 }
@@ -519,33 +519,33 @@ func (gs *GitService) handleCommit(args json.RawMessage) (interface{}, error) {
 		Message string `json:"message"`
 		Amend   bool   `json:"amend"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Message == "" {
 		return nil, fmt.Errorf("commit message cannot be empty")
 	}
-	
+
 	gitArgs := []string{"commit", "-m", req.Message}
-	
+
 	if req.Amend {
 		gitArgs = append(gitArgs, "--amend")
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_commit_operations_total")
-	
+
 	return map[string]interface{}{
 		"success": true,
-		"output": output,
+		"output":  output,
 		"message": req.Message,
-		"amend": req.Amend,
+		"amend":   req.Amend,
 	}, nil
 }
 
@@ -555,39 +555,39 @@ func (gs *GitService) handlePush(args json.RawMessage) (interface{}, error) {
 		Branch *string `json:"branch,omitempty"`
 		Force  bool    `json:"force"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	gitArgs := []string{"push"}
-	
+
 	if req.Force {
 		gitArgs = append(gitArgs, "--force")
 	}
-	
+
 	remote := "origin"
 	if req.Remote != nil {
 		remote = *req.Remote
 	}
 	gitArgs = append(gitArgs, remote)
-	
+
 	if req.Branch != nil {
 		gitArgs = append(gitArgs, *req.Branch)
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_push_operations_total")
-	
+
 	return map[string]interface{}{
 		"success": true,
-		"output": output,
-		"remote": remote,
-		"force": req.Force,
+		"output":  output,
+		"remote":  remote,
+		"force":   req.Force,
 	}, nil
 }
 
@@ -596,30 +596,30 @@ func (gs *GitService) handlePull(args json.RawMessage) (interface{}, error) {
 		Remote *string `json:"remote,omitempty"`
 		Branch *string `json:"branch,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	gitArgs := []string{"pull"}
-	
+
 	if req.Remote != nil {
 		gitArgs = append(gitArgs, *req.Remote)
 		if req.Branch != nil {
 			gitArgs = append(gitArgs, *req.Branch)
 		}
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_pull_operations_total")
-	
+
 	return map[string]interface{}{
 		"success": true,
-		"output": output,
+		"output":  output,
 	}, nil
 }
 
@@ -629,13 +629,13 @@ func (gs *GitService) handleBranch(args json.RawMessage) (interface{}, error) {
 		Name   *string `json:"name,omitempty"`
 		Force  bool    `json:"force"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	var gitArgs []string
-	
+
 	switch req.Action {
 	case "list", "":
 		gitArgs = []string{"branch", "-a"}
@@ -661,18 +661,18 @@ func (gs *GitService) handleBranch(args json.RawMessage) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("invalid action: %s", req.Action)
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_branch_operations_total", "action", req.Action)
-	
+
 	return map[string]interface{}{
 		"success": true,
-		"action": req.Action,
-		"output": output,
+		"action":  req.Action,
+		"output":  output,
 	}, nil
 }
 
@@ -682,37 +682,37 @@ func (gs *GitService) handleLog(args json.RawMessage) (interface{}, error) {
 		Oneline bool `json:"oneline"`
 		Graph   bool `json:"graph"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Limit <= 0 {
 		req.Limit = 10
 	}
-	
+
 	gitArgs := []string{"log", fmt.Sprintf("-%d", req.Limit)}
-	
+
 	if req.Oneline {
 		gitArgs = append(gitArgs, "--oneline")
 	}
-	
+
 	if req.Graph {
 		gitArgs = append(gitArgs, "--graph")
 	}
-	
+
 	output, err := gs.execGit(gitArgs...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gs.metrics.Inc("git_log_operations_total")
-	
+
 	return map[string]interface{}{
-		"log": output,
-		"limit": req.Limit,
+		"log":     output,
+		"limit":   req.Limit,
 		"oneline": req.Oneline,
-		"graph": req.Graph,
+		"graph":   req.Graph,
 	}, nil
 }
 
@@ -726,30 +726,30 @@ func (gs *GitService) verifyGitAvailable() error {
 func (gs *GitService) execGit(args ...string) (string, error) {
 	cmd := exec.Command(gs.gitPath, args...)
 	cmd.Dir = gs.workingDir
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git command failed: %w\nOutput: %s", err, string(output))
 	}
-	
+
 	return string(output), nil
 }
 
 func (gs *GitService) getRepoInfo() (map[string]interface{}, error) {
 	// Get current branch
 	branch, _ := gs.execGit("branch", "--show-current")
-	
+
 	// Get remote URL
 	remoteURL, _ := gs.execGit("remote", "get-url", "origin")
-	
+
 	// Get last commit
 	lastCommit, _ := gs.execGit("log", "-1", "--oneline")
-	
+
 	return map[string]interface{}{
-		"working_dir": gs.workingDir,
+		"working_dir":    gs.workingDir,
 		"current_branch": strings.TrimSpace(branch),
-		"remote_url": strings.TrimSpace(remoteURL),
-		"last_commit": strings.TrimSpace(lastCommit),
+		"remote_url":     strings.TrimSpace(remoteURL),
+		"last_commit":    strings.TrimSpace(lastCommit),
 	}, nil
 }
 
@@ -758,7 +758,7 @@ func (gs *GitService) getRemoteInfo() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var remoteList []map[string]string
 	scanner := bufio.NewScanner(strings.NewReader(remotes))
 	for scanner.Scan() {
@@ -772,7 +772,7 @@ func (gs *GitService) getRemoteInfo() (map[string]interface{}, error) {
 			})
 		}
 	}
-	
+
 	return map[string]interface{}{
 		"remotes": remoteList,
 	}, nil
@@ -784,9 +784,9 @@ func (gs *GitService) handleWorkflowPrompt(args json.RawMessage) (interface{}, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	suggestions := []string{}
-	
+
 	if strings.Contains(status, "M ") {
 		suggestions = append(suggestions, "You have staged changes ready to commit")
 	}
@@ -796,14 +796,14 @@ func (gs *GitService) handleWorkflowPrompt(args json.RawMessage) (interface{}, e
 	if strings.Contains(status, "??") {
 		suggestions = append(suggestions, "You have untracked files - consider adding them")
 	}
-	
+
 	if len(suggestions) == 0 {
 		suggestions = append(suggestions, "Working tree is clean")
 	}
-	
+
 	return map[string]interface{}{
 		"workflow_suggestions": suggestions,
-		"status": status,
+		"status":               status,
 	}, nil
 }
 
@@ -813,14 +813,14 @@ func (gs *GitService) handleCommitMessagePrompt(args json.RawMessage) (interface
 	if err != nil {
 		return nil, err
 	}
-	
+
 	files := strings.Split(strings.TrimSpace(diff), "\n")
 	if len(files) == 1 && files[0] == "" {
 		return map[string]interface{}{
 			"suggestion": "No staged changes to commit",
 		}, nil
 	}
-	
+
 	// Simple commit message suggestions based on changed files
 	suggestion := "Update"
 	if len(files) == 1 {
@@ -828,9 +828,9 @@ func (gs *GitService) handleCommitMessagePrompt(args json.RawMessage) (interface
 	} else {
 		suggestion = fmt.Sprintf("Update %d files", len(files))
 	}
-	
+
 	return map[string]interface{}{
-		"suggestion": suggestion,
+		"suggestion":    suggestion,
 		"changed_files": files,
 	}, nil
 }

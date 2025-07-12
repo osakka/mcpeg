@@ -8,17 +8,17 @@ import (
 // PathConfig centralizes all file system path configuration
 type PathConfig struct {
 	// Base directories
-	BuildDir    string `yaml:"build_dir"`
-	DataDir     string `yaml:"data_dir"`
-	LogsDir     string `yaml:"logs_dir"`
-	RuntimeDir  string `yaml:"runtime_dir"`
-	CacheDir    string `yaml:"cache_dir"`
-	ConfigDir   string `yaml:"config_dir"`
-	
+	BuildDir   string `yaml:"build_dir"`
+	DataDir    string `yaml:"data_dir"`
+	LogsDir    string `yaml:"logs_dir"`
+	RuntimeDir string `yaml:"runtime_dir"`
+	CacheDir   string `yaml:"cache_dir"`
+	ConfigDir  string `yaml:"config_dir"`
+
 	// Specific files
-	PIDFile     string `yaml:"pid_file"`
-	LogFile     string `yaml:"log_file"`
-	
+	PIDFile string `yaml:"pid_file"`
+	LogFile string `yaml:"log_file"`
+
 	// Service-specific paths
 	MemoryDataFile string `yaml:"memory_data_file"`
 }
@@ -26,18 +26,18 @@ type PathConfig struct {
 // DefaultPaths returns the default path configuration with build/ as base
 func DefaultPaths() *PathConfig {
 	buildDir := "build"
-	
+
 	return &PathConfig{
-		BuildDir:    buildDir,
-		DataDir:     filepath.Join(buildDir, "data"),
-		LogsDir:     filepath.Join(buildDir, "logs"),
-		RuntimeDir:  filepath.Join(buildDir, "runtime"),
-		CacheDir:    filepath.Join(buildDir, "cache"),
-		ConfigDir:   "config",
-		
-		PIDFile:     filepath.Join(buildDir, "runtime", "mcpeg.pid"),
-		LogFile:     filepath.Join(buildDir, "logs", "mcpeg.log"),
-		
+		BuildDir:   buildDir,
+		DataDir:    filepath.Join(buildDir, "data"),
+		LogsDir:    filepath.Join(buildDir, "logs"),
+		RuntimeDir: filepath.Join(buildDir, "runtime"),
+		CacheDir:   filepath.Join(buildDir, "cache"),
+		ConfigDir:  "config",
+
+		PIDFile: filepath.Join(buildDir, "runtime", "mcpeg.pid"),
+		LogFile: filepath.Join(buildDir, "logs", "mcpeg.log"),
+
 		MemoryDataFile: filepath.Join(buildDir, "data", "memory_storage.json"),
 	}
 }
@@ -45,16 +45,16 @@ func DefaultPaths() *PathConfig {
 // SystemPaths returns system-wide paths for production deployment
 func SystemPaths() *PathConfig {
 	return &PathConfig{
-		BuildDir:    "/opt/mcpeg/build",
-		DataDir:     "/var/lib/mcpeg",
-		LogsDir:     "/var/log/mcpeg",
-		RuntimeDir:  "/var/run/mcpeg",
-		CacheDir:    "/var/cache/mcpeg",
-		ConfigDir:   "/etc/mcpeg",
-		
-		PIDFile:     "/var/run/mcpeg/mcpeg.pid",
-		LogFile:     "/var/log/mcpeg/mcpeg.log",
-		
+		BuildDir:   "/opt/mcpeg/build",
+		DataDir:    "/var/lib/mcpeg",
+		LogsDir:    "/var/log/mcpeg",
+		RuntimeDir: "/var/run/mcpeg",
+		CacheDir:   "/var/cache/mcpeg",
+		ConfigDir:  "/etc/mcpeg",
+
+		PIDFile: "/var/run/mcpeg/mcpeg.pid",
+		LogFile: "/var/log/mcpeg/mcpeg.log",
+
 		MemoryDataFile: "/var/lib/mcpeg/memory_storage.json",
 	}
 }
@@ -68,13 +68,13 @@ func (p *PathConfig) EnsureDirectories() error {
 		p.RuntimeDir,
 		p.CacheDir,
 	}
-	
+
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -83,13 +83,13 @@ func (p *PathConfig) GetPIDFile() string {
 	if p.PIDFile != "" {
 		return p.PIDFile
 	}
-	
+
 	// Try system location first, then build directory
 	systemPID := "/var/run/mcpeg/mcpeg.pid"
 	if isWritable(filepath.Dir(systemPID)) {
 		return systemPID
 	}
-	
+
 	return filepath.Join(p.BuildDir, "runtime", "mcpeg.pid")
 }
 
@@ -98,13 +98,13 @@ func (p *PathConfig) GetLogFile() string {
 	if p.LogFile != "" {
 		return p.LogFile
 	}
-	
+
 	// Try system location first, then build directory
 	systemLog := "/var/log/mcpeg/mcpeg.log"
 	if isWritable(filepath.Dir(systemLog)) {
 		return systemLog
 	}
-	
+
 	return filepath.Join(p.BuildDir, "logs", "mcpeg.log")
 }
 
@@ -130,7 +130,7 @@ func isWritable(dir string) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	testFile := filepath.Join(dir, ".writetest")
 	file, err := os.Create(testFile)
 	if err != nil {
@@ -147,13 +147,13 @@ func GetDefaultConfigPath() string {
 	if configPath := os.Getenv("MCPEG_CONFIG"); configPath != "" {
 		return configPath
 	}
-	
+
 	// Try system config first
 	systemConfig := "/etc/mcpeg/production.yaml"
 	if _, err := os.Stat(systemConfig); err == nil {
 		return systemConfig
 	}
-	
+
 	// Fall back to local config
 	return "config/production.yaml"
 }
@@ -163,7 +163,7 @@ func GetDefaultPIDFile() string {
 	return DefaultPaths().GetPIDFile()
 }
 
-// GetDefaultLogFile returns the default log file path  
+// GetDefaultLogFile returns the default log file path
 func GetDefaultLogFile() string {
 	return DefaultPaths().GetLogFile()
 }

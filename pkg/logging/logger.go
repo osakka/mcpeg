@@ -35,18 +35,18 @@ type Logger interface {
 
 // Entry represents a structured log entry optimized for LLM consumption
 type Entry struct {
-	Timestamp   time.Time              `json:"timestamp"`
-	Level       LogLevel               `json:"level"`
-	Component   string                 `json:"component"`
-	Operation   string                 `json:"operation"`
-	TraceID     string                 `json:"trace_id,omitempty"`
-	SpanID      string                 `json:"span_id,omitempty"`
-	ParentSpanID string                `json:"parent_span_id,omitempty"`
-	Message     string                 `json:"message"`
-	Data        map[string]interface{} `json:"data,omitempty"`
-	Context     *ExecutionContext      `json:"context,omitempty"`
-	Breadcrumbs []Breadcrumb          `json:"breadcrumbs,omitempty"`
-	Suggestions []string              `json:"suggestions,omitempty"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Level        LogLevel               `json:"level"`
+	Component    string                 `json:"component"`
+	Operation    string                 `json:"operation"`
+	TraceID      string                 `json:"trace_id,omitempty"`
+	SpanID       string                 `json:"span_id,omitempty"`
+	ParentSpanID string                 `json:"parent_span_id,omitempty"`
+	Message      string                 `json:"message"`
+	Data         map[string]interface{} `json:"data,omitempty"`
+	Context      *ExecutionContext      `json:"context,omitempty"`
+	Breadcrumbs  []Breadcrumb           `json:"breadcrumbs,omitempty"`
+	Suggestions  []string               `json:"suggestions,omitempty"`
 }
 
 // ExecutionContext provides runtime context for debugging
@@ -67,14 +67,14 @@ type Breadcrumb struct {
 
 // ErrorContext provides comprehensive error information
 type ErrorContext struct {
-	Type            string                 `json:"type"`
-	Message         string                 `json:"message"`
-	StackTrace      string                 `json:"stack_trace,omitempty"`
-	Cause           *ErrorContext          `json:"cause,omitempty"`
-	RecoveryAttempted bool                 `json:"recovery_attempted"`
-	RecoveryResult  string                 `json:"recovery_result,omitempty"`
-	SuggestedFixes  []string              `json:"suggested_fixes,omitempty"`
-	RelatedData     map[string]interface{} `json:"related_data,omitempty"`
+	Type              string                 `json:"type"`
+	Message           string                 `json:"message"`
+	StackTrace        string                 `json:"stack_trace,omitempty"`
+	Cause             *ErrorContext          `json:"cause,omitempty"`
+	RecoveryAttempted bool                   `json:"recovery_attempted"`
+	RecoveryResult    string                 `json:"recovery_result,omitempty"`
+	SuggestedFixes    []string               `json:"suggested_fixes,omitempty"`
+	RelatedData       map[string]interface{} `json:"related_data,omitempty"`
 }
 
 // llmLogger implements the Logger interface
@@ -201,10 +201,10 @@ func formatMessage(operation string, level LogLevel) string {
 func getExecutionContext() *ExecutionContext {
 	pc, file, line, _ := runtime.Caller(4)
 	fn := runtime.FuncForPC(pc)
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	return &ExecutionContext{
 		Goroutine:   runtime.NumGoroutine(),
 		Function:    fn.Name(),
@@ -216,12 +216,12 @@ func getExecutionContext() *ExecutionContext {
 
 func generateSuggestions(operation string, data map[string]interface{}) []string {
 	suggestions := []string{}
-	
+
 	// Add context-specific suggestions based on operation and error type
 	if errorType, ok := data["error_type"].(string); ok {
 		switch errorType {
 		case "timeout":
-			suggestions = append(suggestions, 
+			suggestions = append(suggestions,
 				"Increase timeout duration",
 				"Check backend service health",
 				"Enable circuit breaker",
@@ -240,30 +240,30 @@ func generateSuggestions(operation string, data map[string]interface{}) []string
 				"Distribute load across time")
 		}
 	}
-	
+
 	return suggestions
 }
 
 // LogError provides comprehensive error logging
 func LogError(logger Logger, err error, operation string, context map[string]interface{}) {
 	fields := make([]interface{}, 0, len(context)*2+10)
-	
+
 	// Add error details
-	fields = append(fields, 
+	fields = append(fields,
 		"error_type", fmt.Sprintf("%T", err),
 		"error_message", err.Error(),
 		"stack_trace", string(debug.Stack()))
-	
+
 	// Add context
 	for k, v := range context {
 		fields = append(fields, k, v)
 	}
-	
+
 	// Build error chain if wrapped
 	if cause := buildErrorChain(err); cause != nil {
 		fields = append(fields, "error_chain", cause)
 	}
-	
+
 	logger.Error(operation, fields...)
 }
 
@@ -271,18 +271,18 @@ func buildErrorChain(err error) *ErrorContext {
 	if err == nil {
 		return nil
 	}
-	
+
 	ctx := &ErrorContext{
 		Type:    fmt.Sprintf("%T", err),
 		Message: err.Error(),
 	}
-	
+
 	// Check if error is wrapped
 	if unwrapper, ok := err.(interface{ Unwrap() error }); ok {
 		if cause := unwrapper.Unwrap(); cause != nil {
 			ctx.Cause = buildErrorChain(cause)
 		}
 	}
-	
+
 	return ctx
 }

@@ -47,12 +47,12 @@ type OverallHealth struct {
 
 // HealthSummary provides aggregated health information
 type HealthSummary struct {
-	Total      int `json:"total"`
-	Healthy    int `json:"healthy"`
-	Degraded   int `json:"degraded"`
-	Unhealthy  int `json:"unhealthy"`
-	Critical   int `json:"critical"`
-	Warnings   int `json:"warnings"`
+	Total     int `json:"total"`
+	Healthy   int `json:"healthy"`
+	Degraded  int `json:"degraded"`
+	Unhealthy int `json:"unhealthy"`
+	Critical  int `json:"critical"`
+	Warnings  int `json:"warnings"`
 }
 
 // HealthChecker defines the interface for health check implementations
@@ -72,10 +72,10 @@ type HealthManager struct {
 	metrics      metrics.Metrics
 	startTime    time.Time
 	version      string
-	
+
 	// Configuration
 	config HealthConfig
-	
+
 	// Background monitoring
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -85,30 +85,30 @@ type HealthManager struct {
 // HealthConfig configures health check behavior
 type HealthConfig struct {
 	// Global timeouts
-	DefaultTimeout   time.Duration `yaml:"default_timeout"`
-	GlobalTimeout    time.Duration `yaml:"global_timeout"`
-	
+	DefaultTimeout time.Duration `yaml:"default_timeout"`
+	GlobalTimeout  time.Duration `yaml:"global_timeout"`
+
 	// Check intervals
 	QuickCheckInterval time.Duration `yaml:"quick_check_interval"`
 	FullCheckInterval  time.Duration `yaml:"full_check_interval"`
-	
+
 	// Failure handling
 	MaxConsecutiveFailures int           `yaml:"max_consecutive_failures"`
-	FailureRetryDelay     time.Duration `yaml:"failure_retry_delay"`
-	
+	FailureRetryDelay      time.Duration `yaml:"failure_retry_delay"`
+
 	// Degradation thresholds
-	DegradedThreshold float64 `yaml:"degraded_threshold"`
+	DegradedThreshold  float64 `yaml:"degraded_threshold"`
 	UnhealthyThreshold float64 `yaml:"unhealthy_threshold"`
-	
+
 	// LLM optimization
 	IncludeDetailedDiagnostics bool `yaml:"include_detailed_diagnostics"`
-	GenerateSuggestions       bool `yaml:"generate_suggestions"`
+	GenerateSuggestions        bool `yaml:"generate_suggestions"`
 }
 
 // NewHealthManager creates a comprehensive health management system
 func NewHealthManager(logger logging.Logger, metrics metrics.Metrics, version string) *HealthManager {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	hm := &HealthManager{
 		checkers:    make([]HealthChecker, 0),
 		lastResults: make(map[string]CheckResult),
@@ -120,20 +120,20 @@ func NewHealthManager(logger logging.Logger, metrics metrics.Metrics, version st
 		cancel:      cancel,
 		config:      defaultHealthConfig(),
 	}
-	
+
 	// Register core health checks
 	hm.registerCoreChecks()
-	
+
 	// Start background monitoring
 	hm.startBackgroundMonitoring()
-	
+
 	return hm
 }
 
 // RegisterChecker adds a health checker to the system
 func (hm *HealthManager) RegisterChecker(checker HealthChecker) {
 	hm.checkers = append(hm.checkers, checker)
-	
+
 	hm.logger.Info("health_checker_registered",
 		"name", checker.Name(),
 		"critical", checker.IsCritical(),
@@ -144,32 +144,32 @@ func (hm *HealthManager) RegisterChecker(checker HealthChecker) {
 // GetHealth performs all health checks and returns overall status
 func (hm *HealthManager) GetHealth(ctx context.Context) OverallHealth {
 	start := time.Now()
-	
+
 	// Create context with global timeout
 	checkCtx, cancel := context.WithTimeout(ctx, hm.config.GlobalTimeout)
 	defer cancel()
-	
+
 	// Run all health checks concurrently
 	results := hm.runAllChecks(checkCtx)
-	
+
 	// Calculate overall status
 	overall := hm.calculateOverallHealth(results)
 	overall.Context = map[string]interface{}{
 		"check_duration":    time.Since(start),
 		"concurrent_checks": len(hm.checkers),
-		"system_load":      hm.getSystemLoad(),
-		"memory_usage":     hm.getMemoryUsage(),
+		"system_load":       hm.getSystemLoad(),
+		"memory_usage":      hm.getMemoryUsage(),
 	}
-	
+
 	// Store results for monitoring
 	hm.updateStoredResults(results)
-	
+
 	// Record metrics
 	hm.recordHealthMetrics(overall)
-	
+
 	// Log health status with LLM context
 	hm.logHealthStatus(overall)
-	
+
 	return overall
 }
 
@@ -177,13 +177,13 @@ func (hm *HealthManager) GetHealth(ctx context.Context) OverallHealth {
 func (hm *HealthManager) GetQuickHealth() OverallHealth {
 	hm.resultsMutex.RLock()
 	defer hm.resultsMutex.RUnlock()
-	
+
 	// Use cached results
 	results := make([]CheckResult, 0, len(hm.lastResults))
 	for _, result := range hm.lastResults {
 		results = append(results, result)
 	}
-	
+
 	return hm.calculateOverallHealth(results)
 }
 
@@ -197,7 +197,7 @@ func (hm *HealthManager) IsHealthy() bool {
 func (hm *HealthManager) IsReady() bool {
 	hm.resultsMutex.RLock()
 	defer hm.resultsMutex.RUnlock()
-	
+
 	for _, result := range hm.lastResults {
 		if result.Critical && result.Status != StatusHealthy {
 			return false
@@ -217,34 +217,34 @@ func (hm *HealthManager) Shutdown() {
 // runAllChecks executes all registered health checks
 func (hm *HealthManager) runAllChecks(ctx context.Context) []CheckResult {
 	results := make(chan CheckResult, len(hm.checkers))
-	
+
 	// Run checks concurrently
 	for _, checker := range hm.checkers {
 		go func(c HealthChecker) {
 			start := time.Now()
-			
+
 			// Create check-specific context with timeout
 			checkCtx, cancel := context.WithTimeout(ctx, hm.config.DefaultTimeout)
 			defer cancel()
-			
+
 			result := c.Check(checkCtx)
 			result.Duration = time.Since(start)
 			result.Timestamp = time.Now()
-			
+
 			// Add LLM debugging context
 			if hm.config.IncludeDetailedDiagnostics {
 				result.Details = hm.addDiagnosticContext(result.Details, c)
 			}
-			
+
 			// Generate suggestions for failures
 			if hm.config.GenerateSuggestions && result.Status != StatusHealthy {
 				result.Suggestions = hm.generateSuggestions(result, c)
 			}
-			
+
 			results <- result
 		}(checker)
 	}
-	
+
 	// Collect all results
 	checkResults := make([]CheckResult, 0, len(hm.checkers))
 	for i := 0; i < len(hm.checkers); i++ {
@@ -263,7 +263,7 @@ func (hm *HealthManager) runAllChecks(ctx context.Context) []CheckResult {
 			})
 		}
 	}
-	
+
 	return checkResults
 }
 
@@ -272,7 +272,7 @@ func (hm *HealthManager) calculateOverallHealth(results []CheckResult) OverallHe
 	summary := HealthSummary{Total: len(results)}
 	var status HealthStatus = StatusHealthy
 	var suggestions []string
-	
+
 	for _, result := range results {
 		switch result.Status {
 		case StatusHealthy:
@@ -289,14 +289,14 @@ func (hm *HealthManager) calculateOverallHealth(results []CheckResult) OverallHe
 				summary.Critical++
 			}
 		}
-		
+
 		// Collect suggestions
 		suggestions = append(suggestions, result.Suggestions...)
 	}
-	
+
 	// Calculate health percentage
 	healthyPercentage := float64(summary.Healthy) / float64(summary.Total)
-	
+
 	// Adjust status based on thresholds
 	if healthyPercentage < hm.config.UnhealthyThreshold {
 		status = StatusUnhealthy
@@ -305,7 +305,7 @@ func (hm *HealthManager) calculateOverallHealth(results []CheckResult) OverallHe
 			status = StatusDegraded
 		}
 	}
-	
+
 	return OverallHealth{
 		Status:      status,
 		Timestamp:   time.Now(),
@@ -321,7 +321,7 @@ func (hm *HealthManager) calculateOverallHealth(results []CheckResult) OverallHe
 func (hm *HealthManager) updateStoredResults(results []CheckResult) {
 	hm.resultsMutex.Lock()
 	defer hm.resultsMutex.Unlock()
-	
+
 	for _, result := range results {
 		hm.lastResults[result.Name] = result
 	}
@@ -333,20 +333,20 @@ func (hm *HealthManager) recordHealthMetrics(health OverallHealth) {
 		"status", string(health.Status),
 		"version", health.Version,
 	}
-	
+
 	hm.metrics.Set("health_status", map[string]float64{
 		string(StatusHealthy):   0,
 		string(StatusDegraded):  0,
 		string(StatusUnhealthy): 0,
 	}[string(health.Status)], labels...)
-	
+
 	hm.metrics.Set("health_checks_total", float64(health.Summary.Total), labels...)
 	hm.metrics.Set("health_checks_healthy", float64(health.Summary.Healthy), labels...)
 	hm.metrics.Set("health_checks_degraded", float64(health.Summary.Degraded), labels...)
 	hm.metrics.Set("health_checks_unhealthy", float64(health.Summary.Unhealthy), labels...)
 	hm.metrics.Set("health_checks_critical", float64(health.Summary.Critical), labels...)
 	hm.metrics.Set("system_uptime_seconds", health.Uptime.Seconds(), labels...)
-	
+
 	// Record individual check results
 	for _, check := range health.Checks {
 		checkLabels := []string{
@@ -354,10 +354,10 @@ func (hm *HealthManager) recordHealthMetrics(health OverallHealth) {
 			"status", string(check.Status),
 			"critical", fmt.Sprintf("%t", check.Critical),
 		}
-		
+
 		hm.metrics.Set("health_check_duration_seconds", check.Duration.Seconds(), checkLabels...)
 		hm.metrics.Inc("health_check_executions_total", checkLabels...)
-		
+
 		if check.Status != StatusHealthy {
 			hm.metrics.Inc("health_check_failures_total", checkLabels...)
 		}
@@ -368,7 +368,7 @@ func (hm *HealthManager) recordHealthMetrics(health OverallHealth) {
 func (hm *HealthManager) logHealthStatus(health OverallHealth) {
 	logLevel := "info"
 	message := "health_check_completed"
-	
+
 	if health.Status == StatusUnhealthy {
 		logLevel = "error"
 		message = "system_unhealthy"
@@ -376,7 +376,7 @@ func (hm *HealthManager) logHealthStatus(health OverallHealth) {
 		logLevel = "warn"
 		message = "system_degraded"
 	}
-	
+
 	fields := []interface{}{
 		"overall_status", health.Status,
 		"uptime", health.Uptime,
@@ -386,11 +386,11 @@ func (hm *HealthManager) logHealthStatus(health OverallHealth) {
 		"degraded_checks", health.Summary.Degraded,
 		"unhealthy_checks", health.Summary.Unhealthy,
 		"critical_failures", health.Summary.Critical,
-		"health_percentage", float64(health.Summary.Healthy)/float64(health.Summary.Total)*100,
+		"health_percentage", float64(health.Summary.Healthy) / float64(health.Summary.Total) * 100,
 		"suggestions", health.Suggestions,
 		"context", health.Context,
 	}
-	
+
 	// Add detailed check information for failures
 	if health.Status != StatusHealthy {
 		failedChecks := []map[string]interface{}{}
@@ -410,7 +410,7 @@ func (hm *HealthManager) logHealthStatus(health OverallHealth) {
 		}
 		fields = append(fields, "failed_checks", failedChecks)
 	}
-	
+
 	switch logLevel {
 	case "error":
 		hm.logger.Error(message, fields...)
@@ -424,13 +424,13 @@ func (hm *HealthManager) logHealthStatus(health OverallHealth) {
 // startBackgroundMonitoring starts continuous health monitoring
 func (hm *HealthManager) startBackgroundMonitoring() {
 	hm.wg.Add(2)
-	
+
 	// Quick health checks (frequent)
 	go func() {
 		defer hm.wg.Done()
 		ticker := time.NewTicker(hm.config.QuickCheckInterval)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -441,22 +441,22 @@ func (hm *HealthManager) startBackgroundMonitoring() {
 			}
 		}
 	}()
-	
+
 	// Full health checks (less frequent)
 	go func() {
 		defer hm.wg.Done()
 		ticker := time.NewTicker(hm.config.FullCheckInterval)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
 				// Run all checks
 				health := hm.GetHealth(hm.ctx)
-				
+
 				// Alert on status changes
 				hm.detectStatusChanges(health)
-				
+
 			case <-hm.ctx.Done():
 				return
 			}
@@ -468,17 +468,17 @@ func (hm *HealthManager) startBackgroundMonitoring() {
 func (hm *HealthManager) runQuickChecks() {
 	ctx, cancel := context.WithTimeout(hm.ctx, hm.config.DefaultTimeout)
 	defer cancel()
-	
+
 	for _, checker := range hm.checkers {
 		if checker.IsCritical() {
 			go func(c HealthChecker) {
 				result := c.Check(ctx)
 				result.Timestamp = time.Now()
-				
+
 				hm.resultsMutex.Lock()
 				hm.lastResults[c.Name()] = result
 				hm.resultsMutex.Unlock()
-				
+
 				// Alert on critical failures
 				if result.Status == StatusUnhealthy {
 					hm.logger.Error("critical_health_check_failed",
@@ -511,7 +511,7 @@ func (hm *HealthManager) registerCoreChecks() {
 			CriticalThreshold: 0.95, // 95%
 		},
 	})
-	
+
 	// Goroutine count check
 	hm.RegisterChecker(&GoroutineHealthChecker{
 		logger: hm.logger.WithComponent("goroutine_health"),
@@ -520,7 +520,7 @@ func (hm *HealthManager) registerCoreChecks() {
 			CriticalThreshold: 5000,
 		},
 	})
-	
+
 	// System load check
 	hm.RegisterChecker(&SystemLoadHealthChecker{
 		logger: hm.logger.WithComponent("system_load_health"),
@@ -532,18 +532,18 @@ func (hm *HealthManager) addDiagnosticContext(existing map[string]interface{}, c
 	if existing == nil {
 		existing = make(map[string]interface{})
 	}
-	
+
 	existing["check_interval"] = checker.Interval()
 	existing["is_critical"] = checker.IsCritical()
 	existing["system_time"] = time.Now()
 	existing["uptime"] = time.Since(hm.startTime)
-	
+
 	return existing
 }
 
 func (hm *HealthManager) generateSuggestions(result CheckResult, checker HealthChecker) []string {
 	suggestions := []string{}
-	
+
 	switch result.Status {
 	case StatusUnhealthy:
 		suggestions = append(suggestions,
@@ -551,14 +551,14 @@ func (hm *HealthManager) generateSuggestions(result CheckResult, checker HealthC
 			"Review recent error logs",
 			"Verify resource availability",
 			"Consider restarting the service")
-			
+
 	case StatusDegraded:
 		suggestions = append(suggestions,
 			fmt.Sprintf("Monitor %s component closely", checker.Name()),
 			"Check for resource constraints",
 			"Review performance metrics")
 	}
-	
+
 	return suggestions
 }
 
@@ -578,14 +578,14 @@ func (hm *HealthManager) getMemoryUsage() map[string]interface{} {
 
 func defaultHealthConfig() HealthConfig {
 	return HealthConfig{
-		DefaultTimeout:         30 * time.Second,
-		GlobalTimeout:          60 * time.Second,
-		QuickCheckInterval:     10 * time.Second,
-		FullCheckInterval:      60 * time.Second,
-		MaxConsecutiveFailures: 3,
-		FailureRetryDelay:     5 * time.Second,
-		DegradedThreshold:     0.8,  // 80% healthy
-		UnhealthyThreshold:    0.6,  // 60% healthy
+		DefaultTimeout:             30 * time.Second,
+		GlobalTimeout:              60 * time.Second,
+		QuickCheckInterval:         10 * time.Second,
+		FullCheckInterval:          60 * time.Second,
+		MaxConsecutiveFailures:     3,
+		FailureRetryDelay:          5 * time.Second,
+		DegradedThreshold:          0.8, // 80% healthy
+		UnhealthyThreshold:         0.6, // 60% healthy
 		IncludeDetailedDiagnostics: true,
 		GenerateSuggestions:        true,
 	}
@@ -594,13 +594,13 @@ func defaultHealthConfig() HealthConfig {
 func deduplicateStrings(slice []string) []string {
 	keys := make(map[string]bool)
 	var result []string
-	
+
 	for _, item := range slice {
 		if !keys[item] {
 			keys[item] = true
 			result = append(result, item)
 		}
 	}
-	
+
 	return result
 }

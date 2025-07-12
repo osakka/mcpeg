@@ -13,11 +13,11 @@ import (
 // FileLoggerConfig configures file-based logging
 type FileLoggerConfig struct {
 	FilePath    string `yaml:"file_path"`
-	MaxSize     int64  `yaml:"max_size"`     // Maximum size in bytes before rotation
-	MaxBackups  int    `yaml:"max_backups"`  // Maximum number of backup files
-	MaxAge      int    `yaml:"max_age"`      // Maximum age in days
-	Compress    bool   `yaml:"compress"`     // Whether to compress rotated files
-	BufferSize  int    `yaml:"buffer_size"`  // Buffer size for writing
+	MaxSize     int64  `yaml:"max_size"`      // Maximum size in bytes before rotation
+	MaxBackups  int    `yaml:"max_backups"`   // Maximum number of backup files
+	MaxAge      int    `yaml:"max_age"`       // Maximum age in days
+	Compress    bool   `yaml:"compress"`      // Whether to compress rotated files
+	BufferSize  int    `yaml:"buffer_size"`   // Buffer size for writing
 	SyncOnWrite bool   `yaml:"sync_on_write"` // Sync after each write
 }
 
@@ -207,9 +207,9 @@ func (fl *FileLogger) rotate() error {
 func (fl *FileLogger) compressFile(filePath string) error {
 	// Simple gzip compression implementation
 	// In a full implementation, you'd use compress/gzip package
-	
+
 	compressedPath := filePath + ".gz"
-	
+
 	// Read original file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -396,10 +396,10 @@ func (mw *MultiWriter) RemoveWriter(writer io.Writer) {
 
 // ProductionLogger combines console and file logging
 type ProductionLogger struct {
-	console    Logger
-	fileLogger *FileLogger
+	console     Logger
+	fileLogger  *FileLogger
 	multiWriter *MultiWriter
-	level      string
+	level       string
 }
 
 // NewProductionLogger creates a production logger with both console and file output
@@ -439,7 +439,7 @@ func (sl *SimpleLogger) WithComponent(component string) Logger {
 	return &SimpleLogger{level: sl.level, writer: sl.writer}
 }
 
-// WithContext implements Logger interface  
+// WithContext implements Logger interface
 func (sl *SimpleLogger) WithContext(ctx context.Context) Logger {
 	return sl
 }
@@ -509,15 +509,15 @@ func (sl *SimpleLogger) log(level, msg string, fields ...interface{}) {
 	defer sl.mutex.Unlock()
 
 	timestamp := time.Now().Format("2006-01-02T15:04:05.000Z")
-	
+
 	logLine := fmt.Sprintf("[%s] %s %s", timestamp, level, msg)
-	
+
 	if len(fields) > 0 {
 		logLine += fmt.Sprintf(" %v", fields)
 	}
-	
+
 	logLine += "\n"
-	
+
 	sl.writer.Write([]byte(logLine))
 }
 

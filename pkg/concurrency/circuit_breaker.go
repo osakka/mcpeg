@@ -38,12 +38,12 @@ var (
 
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
-	name            string
-	maxFailures     int
-	resetTimeout    time.Duration
-	halfOpenMax     int
+	name             string
+	maxFailures      int
+	resetTimeout     time.Duration
+	halfOpenMax      int
 	successThreshold int
-	
+
 	mu              sync.RWMutex
 	state           State
 	failures        int
@@ -52,8 +52,8 @@ type CircuitBreaker struct {
 	lastFailureTime time.Time
 	lastStateChange time.Time
 	generation      uint64
-	
-	logger          logging.Logger
+
+	logger logging.Logger
 }
 
 // CircuitBreakerConfig contains configuration for a circuit breaker
@@ -71,7 +71,7 @@ func NewCircuitBreaker(config CircuitBreakerConfig) *CircuitBreaker {
 	if config.SuccessThreshold == 0 {
 		config.SuccessThreshold = config.HalfOpenMax
 	}
-	
+
 	cb := &CircuitBreaker{
 		name:             config.Name,
 		maxFailures:      config.MaxFailures,
@@ -82,12 +82,12 @@ func NewCircuitBreaker(config CircuitBreakerConfig) *CircuitBreaker {
 		lastStateChange:  time.Now(),
 		logger:           config.Logger.WithComponent("circuit_breaker." + config.Name),
 	}
-	
+
 	cb.logger.Info("circuit_breaker_created",
 		"max_failures", cb.maxFailures,
 		"reset_timeout", cb.resetTimeout,
 		"half_open_max", cb.halfOpenMax)
-	
+
 	return cb
 }
 
@@ -96,10 +96,10 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
 	if err := cb.beforeExecute(); err != nil {
 		return err
 	}
-	
+
 	// Execute the function
 	err := fn()
-	
+
 	cb.afterExecute(err)
 	return err
 }
@@ -108,14 +108,14 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
 func (cb *CircuitBreaker) beforeExecute() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	now := time.Now()
-	
+
 	switch cb.state {
 	case StateClosed:
 		// Normal operation
 		return nil
-		
+
 	case StateOpen:
 		// Check if we should transition to half-open
 		if now.Sub(cb.lastFailureTime) > cb.resetTimeout {
@@ -123,12 +123,12 @@ func (cb *CircuitBreaker) beforeExecute() error {
 			cb.halfOpenCount = 1
 			return nil
 		}
-		
+
 		cb.logger.Debug("circuit_breaker_rejected",
 			"state", "open",
 			"time_until_reset", cb.resetTimeout-now.Sub(cb.lastFailureTime))
 		return ErrCircuitOpen
-		
+
 	case StateHalfOpen:
 		// Allow limited requests in half-open state
 		if cb.halfOpenCount >= cb.halfOpenMax {
@@ -140,7 +140,7 @@ func (cb *CircuitBreaker) beforeExecute() error {
 		}
 		cb.halfOpenCount++
 		return nil
-		
+
 	default:
 		return errors.New("unknown circuit breaker state")
 	}
@@ -150,7 +150,7 @@ func (cb *CircuitBreaker) beforeExecute() error {
 func (cb *CircuitBreaker) afterExecute(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	if err != nil {
 		cb.recordFailure()
 	} else {
@@ -162,7 +162,7 @@ func (cb *CircuitBreaker) afterExecute(err error) {
 func (cb *CircuitBreaker) recordFailure() {
 	cb.failures++
 	cb.lastFailureTime = time.Now()
-	
+
 	switch cb.state {
 	case StateClosed:
 		if cb.failures >= cb.maxFailures {
@@ -178,7 +178,7 @@ func (cb *CircuitBreaker) recordFailure() {
 					"Verify network connectivity",
 				})
 		}
-		
+
 	case StateHalfOpen:
 		// Single failure in half-open state reopens the circuit
 		cb.transitionTo(StateOpen)
@@ -194,7 +194,7 @@ func (cb *CircuitBreaker) recordSuccess() {
 	case StateClosed:
 		// Reset failure count on success in closed state
 		cb.failures = 0
-		
+
 	case StateHalfOpen:
 		cb.successes++
 		if cb.successes >= cb.successThreshold {
@@ -214,7 +214,7 @@ func (cb *CircuitBreaker) transitionTo(newState State) {
 	cb.state = newState
 	cb.lastStateChange = time.Now()
 	cb.generation++
-	
+
 	// Reset counters based on new state
 	switch newState {
 	case StateClosed:
@@ -225,7 +225,7 @@ func (cb *CircuitBreaker) transitionTo(newState State) {
 		cb.successes = 0
 		cb.halfOpenCount = 0
 	}
-	
+
 	cb.logger.Info("circuit_breaker_state_change",
 		"from", oldState.String(),
 		"to", newState.String(),
@@ -236,7 +236,7 @@ func (cb *CircuitBreaker) transitionTo(newState State) {
 func (cb *CircuitBreaker) GetState() (State, CircuitBreakerStatus) {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
-	
+
 	status := CircuitBreakerStatus{
 		State:           cb.state.String(),
 		Failures:        cb.failures,
@@ -246,14 +246,14 @@ func (cb *CircuitBreaker) GetState() (State, CircuitBreakerStatus) {
 		LastStateChange: cb.lastStateChange,
 		Generation:      cb.generation,
 	}
-	
+
 	if cb.state == StateOpen {
 		status.TimeUntilReset = cb.resetTimeout - time.Since(cb.lastFailureTime)
 		if status.TimeUntilReset < 0 {
 			status.TimeUntilReset = 0
 		}
 	}
-	
+
 	return cb.state, status
 }
 
@@ -273,17 +273,17 @@ type CircuitBreakerStatus struct {
 func (cb *CircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	cb.logger.Info("circuit_breaker_manual_reset",
 		"previous_state", cb.state.String())
-	
+
 	cb.transitionTo(StateClosed)
 }
 
 // LogStatus logs the current circuit breaker status for debugging
 func (cb *CircuitBreaker) LogStatus() {
 	_, status := cb.GetState()
-	
+
 	cb.logger.Info("circuit_breaker_status",
 		"state", status.State,
 		"failures", status.Failures,
@@ -314,7 +314,7 @@ func NewCircuitBreakerGroup(logger logging.Logger) *CircuitBreakerGroup {
 func (g *CircuitBreakerGroup) Add(name string, cb *CircuitBreaker) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	
+
 	g.breakers[name] = cb
 	g.logger.Debug("circuit_breaker_added", "name", name)
 }
@@ -323,7 +323,7 @@ func (g *CircuitBreakerGroup) Add(name string, cb *CircuitBreaker) {
 func (g *CircuitBreakerGroup) Get(name string) (*CircuitBreaker, bool) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	
+
 	cb, ok := g.breakers[name]
 	return cb, ok
 }
@@ -332,20 +332,20 @@ func (g *CircuitBreakerGroup) Get(name string) (*CircuitBreaker, bool) {
 func (g *CircuitBreakerGroup) GetStatus() map[string]CircuitBreakerStatus {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	
+
 	status := make(map[string]CircuitBreakerStatus)
 	for name, cb := range g.breakers {
 		_, cbStatus := cb.GetState()
 		status[name] = cbStatus
 	}
-	
+
 	return status
 }
 
 // LogAllStatus logs the status of all circuit breakers
 func (g *CircuitBreakerGroup) LogAllStatus() {
 	status := g.GetStatus()
-	
+
 	g.logger.Info("circuit_breaker_group_status",
 		"total_breakers", len(status),
 		"breakers", status)

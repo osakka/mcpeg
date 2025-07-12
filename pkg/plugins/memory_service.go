@@ -40,30 +40,30 @@ func (ms *MemoryService) Initialize(ctx context.Context, config PluginConfig) er
 	if err := ms.BasePlugin.Initialize(ctx, config); err != nil {
 		return err
 	}
-	
+
 	// Set up data file path using centralized path configuration
 	pathConfig := paths.DefaultPaths()
 	dataDir := pathConfig.GetDataDir()
 	if configDataDir, ok := config.Config["data_dir"].(string); ok {
 		dataDir = configDataDir
 	}
-	
+
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create data directory: %w", err)
 	}
-	
+
 	ms.dataFile = filepath.Join(dataDir, "memory_storage.json")
-	
+
 	// Load existing data
 	if err := ms.loadData(); err != nil {
 		ms.logger.Warn("failed_to_load_existing_data", "error", err)
 		// Continue with empty storage
 	}
-	
+
 	ms.logger.Info("memory_service_initialized",
 		"data_file", ms.dataFile,
 		"existing_keys", len(ms.storage))
-	
+
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (ms *MemoryService) GetTools() []registry.ToolDefinition {
 						"value": map[string]interface{}{
 							"user_id": 123,
 							"preferences": map[string]interface{}{
-								"theme": "dark",
+								"theme":    "dark",
 								"language": "en",
 							},
 						},
@@ -232,7 +232,7 @@ func (ms *MemoryService) GetResources() []registry.ResourceDefinition {
 		},
 		{
 			Name:        "memory_dump",
-			Type:        "application/json", 
+			Type:        "application/json",
 			Description: "Complete memory dump (for debugging)",
 		},
 	}
@@ -260,7 +260,7 @@ func (ms *MemoryService) CallTool(ctx context.Context, name string, args json.Ra
 	defer func() {
 		ms.LogToolCall(name, time.Since(start), nil)
 	}()
-	
+
 	switch name {
 	case "memory_store":
 		return ms.handleStore(args)
@@ -283,7 +283,7 @@ func (ms *MemoryService) ReadResource(ctx context.Context, uri string) (interfac
 	defer func() {
 		ms.LogResourceAccess(uri, time.Since(start), nil)
 	}()
-	
+
 	switch uri {
 	case "memory_stats":
 		return ms.getStats(), nil
@@ -319,36 +319,36 @@ func (ms *MemoryService) handleStore(args json.RawMessage) (interface{}, error) 
 		Value interface{} `json:"value"`
 		TTL   *int        `json:"ttl,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if req.Key == "" {
 		return nil, fmt.Errorf("key cannot be empty")
 	}
-	
+
 	ms.storageMux.Lock()
 	defer ms.storageMux.Unlock()
-	
+
 	// Store the value
 	ms.storage[req.Key] = req.Value
-	
+
 	// Handle TTL if specified
 	if req.TTL != nil && *req.TTL > 0 {
 		go ms.scheduleExpiration(req.Key, time.Duration(*req.TTL)*time.Second)
 	}
-	
+
 	// Save to disk if auto-save is enabled
 	if ms.autoSave {
 		if err := ms.saveData(); err != nil {
 			ms.logger.Warn("failed_to_save_data", "error", err)
 		}
 	}
-	
+
 	ms.metrics.Inc("memory_store_operations_total")
 	ms.metrics.Set("memory_keys_count", float64(len(ms.storage)))
-	
+
 	return map[string]interface{}{
 		"success": true,
 		"key":     req.Key,
@@ -360,21 +360,21 @@ func (ms *MemoryService) handleRetrieve(args json.RawMessage) (interface{}, erro
 	var req struct {
 		Key string `json:"key"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	ms.storageMux.RLock()
 	defer ms.storageMux.RUnlock()
-	
+
 	value, exists := ms.storage[req.Key]
 	if !exists {
 		return nil, fmt.Errorf("key '%s' not found", req.Key)
 	}
-	
+
 	ms.metrics.Inc("memory_retrieve_operations_total")
-	
+
 	return map[string]interface{}{
 		"key":   req.Key,
 		"value": value,
@@ -386,19 +386,19 @@ func (ms *MemoryService) handleList(args json.RawMessage) (interface{}, error) {
 		Pattern *string `json:"pattern,omitempty"`
 		Limit   *int    `json:"limit,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	limit := 100
 	if req.Limit != nil {
 		limit = *req.Limit
 	}
-	
+
 	ms.storageMux.RLock()
 	defer ms.storageMux.RUnlock()
-	
+
 	var keys []string
 	for key := range ms.storage {
 		if req.Pattern == nil || ms.matchesPattern(key, *req.Pattern) {
@@ -408,9 +408,9 @@ func (ms *MemoryService) handleList(args json.RawMessage) (interface{}, error) {
 			}
 		}
 	}
-	
+
 	ms.metrics.Inc("memory_list_operations_total")
-	
+
 	return map[string]interface{}{
 		"keys":  keys,
 		"count": len(keys),
@@ -422,31 +422,31 @@ func (ms *MemoryService) handleDelete(args json.RawMessage) (interface{}, error)
 	var req struct {
 		Key string `json:"key"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	ms.storageMux.Lock()
 	defer ms.storageMux.Unlock()
-	
+
 	_, exists := ms.storage[req.Key]
 	if !exists {
 		return nil, fmt.Errorf("key '%s' not found", req.Key)
 	}
-	
+
 	delete(ms.storage, req.Key)
-	
+
 	// Save to disk if auto-save is enabled
 	if ms.autoSave {
 		if err := ms.saveData(); err != nil {
 			ms.logger.Warn("failed_to_save_data", "error", err)
 		}
 	}
-	
+
 	ms.metrics.Inc("memory_delete_operations_total")
 	ms.metrics.Set("memory_keys_count", float64(len(ms.storage)))
-	
+
 	return map[string]interface{}{
 		"success": true,
 		"key":     req.Key,
@@ -458,35 +458,35 @@ func (ms *MemoryService) handleClear(args json.RawMessage) (interface{}, error) 
 	var req struct {
 		Confirm bool `json:"confirm"`
 	}
-	
+
 	if err := json.Unmarshal(args, &req); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	
+
 	if !req.Confirm {
 		return nil, fmt.Errorf("must confirm to clear all data")
 	}
-	
+
 	ms.storageMux.Lock()
 	defer ms.storageMux.Unlock()
-	
+
 	oldCount := len(ms.storage)
 	ms.storage = make(map[string]interface{})
-	
+
 	// Save to disk if auto-save is enabled
 	if ms.autoSave {
 		if err := ms.saveData(); err != nil {
 			ms.logger.Warn("failed_to_save_data", "error", err)
 		}
 	}
-	
+
 	ms.metrics.Inc("memory_clear_operations_total")
 	ms.metrics.Set("memory_keys_count", 0)
-	
+
 	return map[string]interface{}{
-		"success":     true,
+		"success":      true,
 		"keys_cleared": oldCount,
-		"message":     fmt.Sprintf("Cleared %d keys from memory", oldCount),
+		"message":      fmt.Sprintf("Cleared %d keys from memory", oldCount),
 	}, nil
 }
 
@@ -494,14 +494,14 @@ func (ms *MemoryService) handleClear(args json.RawMessage) (interface{}, error) 
 
 func (ms *MemoryService) scheduleExpiration(key string, ttl time.Duration) {
 	time.Sleep(ttl)
-	
+
 	ms.storageMux.Lock()
 	defer ms.storageMux.Unlock()
-	
+
 	delete(ms.storage, key)
-	
+
 	ms.logger.Debug("memory_key_expired", "key", key)
-	
+
 	if ms.autoSave {
 		if err := ms.saveData(); err != nil {
 			ms.logger.Warn("failed_to_save_data_after_expiration", "error", err)
@@ -514,25 +514,25 @@ func (ms *MemoryService) matchesPattern(str, pattern string) bool {
 	if pattern == "*" {
 		return true
 	}
-	
+
 	// For now, just check if pattern is contained in string
 	// In production, you'd want proper wildcard/regex matching
-	return len(str) >= len(pattern) && 
-		(str == pattern || 
-		 (len(pattern) > 0 && pattern[len(pattern)-1] == '*' && 
-		  len(str) >= len(pattern)-1 && 
-		  str[:len(pattern)-1] == pattern[:len(pattern)-1]))
+	return len(str) >= len(pattern) &&
+		(str == pattern ||
+			(len(pattern) > 0 && pattern[len(pattern)-1] == '*' &&
+				len(str) >= len(pattern)-1 &&
+				str[:len(pattern)-1] == pattern[:len(pattern)-1]))
 }
 
 func (ms *MemoryService) getStats() map[string]interface{} {
 	ms.storageMux.RLock()
 	defer ms.storageMux.RUnlock()
-	
+
 	return map[string]interface{}{
-		"total_keys":   len(ms.storage),
-		"data_file":    ms.dataFile,
-		"auto_save":    ms.autoSave,
-		"plugin_name":  ms.Name(),
+		"total_keys":     len(ms.storage),
+		"data_file":      ms.dataFile,
+		"auto_save":      ms.autoSave,
+		"plugin_name":    ms.Name(),
 		"plugin_version": ms.Version(),
 	}
 }
@@ -540,20 +540,20 @@ func (ms *MemoryService) getStats() map[string]interface{} {
 func (ms *MemoryService) getDump() map[string]interface{} {
 	ms.storageMux.RLock()
 	defer ms.storageMux.RUnlock()
-	
+
 	// Create a copy to avoid race conditions
 	dump := make(map[string]interface{})
 	for key, value := range ms.storage {
 		dump[key] = value
 	}
-	
+
 	return dump
 }
 
 func (ms *MemoryService) handleSearchPrompt(args json.RawMessage) (interface{}, error) {
 	// Implementation for search prompt
 	return map[string]interface{}{
-		"prompt": "Search memory for relevant information",
+		"prompt":  "Search memory for relevant information",
 		"context": "Use memory_list to find relevant keys, then memory_retrieve to get values",
 	}, nil
 }
@@ -561,7 +561,7 @@ func (ms *MemoryService) handleSearchPrompt(args json.RawMessage) (interface{}, 
 func (ms *MemoryService) handleContextPrompt(args json.RawMessage) (interface{}, error) {
 	// Implementation for context prompt
 	return map[string]interface{}{
-		"prompt": "Get contextual information from memory",
+		"prompt":  "Get contextual information from memory",
 		"context": "Use memory_retrieve to get specific context or memory_list to browse available context",
 	}, nil
 }
@@ -573,11 +573,11 @@ func (ms *MemoryService) saveData() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
-	
+
 	if err := os.WriteFile(ms.dataFile, data, 0644); err != nil {
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -589,11 +589,11 @@ func (ms *MemoryService) loadData() error {
 		}
 		return fmt.Errorf("failed to read data file: %w", err)
 	}
-	
+
 	if err := json.Unmarshal(data, &ms.storage); err != nil {
 		return fmt.Errorf("failed to unmarshal data: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -602,10 +602,10 @@ func (ms *MemoryService) Shutdown(ctx context.Context) error {
 	// Save data before shutdown
 	ms.storageMux.Lock()
 	defer ms.storageMux.Unlock()
-	
+
 	if err := ms.saveData(); err != nil {
 		ms.logger.Error("failed_to_save_data_on_shutdown", "error", err)
 	}
-	
+
 	return ms.BasePlugin.Shutdown(ctx)
 }

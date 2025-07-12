@@ -17,7 +17,7 @@ type LoadBalancer struct {
 	logger   logging.Logger
 	metrics  metrics.Metrics
 	config   LoadBalancerConfig
-	
+
 	// Per-service state tracking
 	serviceState map[string]*ServiceState
 	mutex        sync.RWMutex
@@ -25,8 +25,8 @@ type LoadBalancer struct {
 
 // LoadBalancerConfig configures load balancing behavior
 type LoadBalancerConfig struct {
-	Strategy              string        `yaml:"strategy"`               // round_robin, least_connections, weighted, hash
-	HealthyThreshold      float64       `yaml:"healthy_threshold"`      // 0.95 = 95% success rate
+	Strategy              string        `yaml:"strategy"`          // round_robin, least_connections, weighted, hash
+	HealthyThreshold      float64       `yaml:"healthy_threshold"` // 0.95 = 95% success rate
 	CircuitBreakerEnabled bool          `yaml:"circuit_breaker_enabled"`
 	CircuitBreakerTimeout time.Duration `yaml:"circuit_breaker_timeout"`
 	StickySessionEnabled  bool          `yaml:"sticky_session_enabled"`
@@ -44,11 +44,37 @@ type ServiceState struct {
 	CircuitOpen     bool
 	CircuitOpenedAt time.Time
 	Weight          int
-	
+
 	// Sticky session tracking
 	Sessions map[string]time.Time
-	
+
 	mutex sync.RWMutex
+}
+
+// Copy creates a safe copy of ServiceState without copying the mutex
+func (ss *ServiceState) Copy() *ServiceState {
+	ss.mutex.RLock()
+	defer ss.mutex.RUnlock()
+
+	// Copy sessions map
+	sessionsCopy := make(map[string]time.Time)
+	for k, v := range ss.Sessions {
+		sessionsCopy[k] = v
+	}
+
+	return &ServiceState{
+		Service:         ss.Service, // RegisteredService pointer is shared
+		ActiveRequests:  ss.ActiveRequests,
+		TotalRequests:   ss.TotalRequests,
+		SuccessRequests: ss.SuccessRequests,
+		FailedRequests:  ss.FailedRequests,
+		LastUsed:        ss.LastUsed,
+		CircuitOpen:     ss.CircuitOpen,
+		CircuitOpenedAt: ss.CircuitOpenedAt,
+		Weight:          ss.Weight,
+		Sessions:        sessionsCopy,
+		// mutex is not copied - new mutex will be zero-value initialized
+	}
 }
 
 // SessionContext provides session information for sticky routing
@@ -75,16 +101,16 @@ func (lb *LoadBalancer) SelectService(services []*RegisteredService, criteria Se
 	if len(services) == 0 {
 		return nil, fmt.Errorf("no services available")
 	}
-	
+
 	// Filter healthy services and update state
 	healthyServices := lb.filterHealthyServices(services)
 	if len(healthyServices) == 0 {
 		return nil, fmt.Errorf("no healthy services available")
 	}
-	
+
 	// Apply selection strategy
 	var selected *RegisteredService
-	
+
 	switch lb.config.Strategy {
 	case "round_robin":
 		selected = lb.selectRoundRobin(healthyServices)
@@ -99,20 +125,20 @@ func (lb *LoadBalancer) SelectService(services []*RegisteredService, criteria Se
 	default:
 		selected = lb.selectRoundRobin(healthyServices)
 	}
-	
+
 	if selected == nil {
 		return nil, fmt.Errorf("failed to select service using strategy: %s", lb.config.Strategy)
 	}
-	
+
 	// Update service state
 	lb.updateServiceSelection(selected)
-	
+
 	lb.logger.Debug("service_selected",
 		"service_id", selected.ID,
 		"strategy", lb.config.Strategy,
 		"total_candidates", len(services),
 		"healthy_candidates", len(healthyServices))
-	
+
 	return selected, nil
 }
 
@@ -120,15 +146,15 @@ func (lb *LoadBalancer) SelectService(services []*RegisteredService, criteria Se
 func (lb *LoadBalancer) filterHealthyServices(services []*RegisteredService) []*RegisteredService {
 	lb.mutex.RLock()
 	defer lb.mutex.RUnlock()
-	
+
 	var healthy []*RegisteredService
-	
+
 	for _, service := range services {
 		// Basic health check
 		if service.Health != HealthHealthy || service.Status != StatusActive {
 			continue
 		}
-		
+
 		// Circuit breaker check
 		if lb.config.CircuitBreakerEnabled {
 			state := lb.getOrCreateServiceState(service)
@@ -144,7 +170,7 @@ func (lb *LoadBalancer) filterHealthyServices(services []*RegisteredService) []*
 				}
 			}
 		}
-		
+
 		// Success rate check
 		state := lb.getOrCreateServiceState(service)
 		if state.TotalRequests > 10 { // Only check after minimum requests
@@ -157,10 +183,10 @@ func (lb *LoadBalancer) filterHealthyServices(services []*RegisteredService) []*
 				continue
 			}
 		}
-		
+
 		healthy = append(healthy, service)
 	}
-	
+
 	return healthy
 }
 
@@ -169,11 +195,11 @@ func (lb *LoadBalancer) selectRoundRobin(services []*RegisteredService) *Registe
 	if len(services) == 0 {
 		return nil
 	}
-	
+
 	// Find the service that was used least recently
 	var selected *RegisteredService
 	var oldestUsage time.Time = time.Now()
-	
+
 	for _, service := range services {
 		state := lb.getOrCreateServiceState(service)
 		if state.LastUsed.Before(oldestUsage) {
@@ -181,12 +207,12 @@ func (lb *LoadBalancer) selectRoundRobin(services []*RegisteredService) *Registe
 			selected = service
 		}
 	}
-	
+
 	// If no service has been used, pick the first
 	if selected == nil {
 		selected = services[0]
 	}
-	
+
 	return selected
 }
 
@@ -195,10 +221,10 @@ func (lb *LoadBalancer) selectLeastConnections(services []*RegisteredService) *R
 	if len(services) == 0 {
 		return nil
 	}
-	
+
 	var selected *RegisteredService
 	var minConnections int64 = -1
-	
+
 	for _, service := range services {
 		state := lb.getOrCreateServiceState(service)
 		if minConnections == -1 || state.ActiveRequests < minConnections {
@@ -206,7 +232,7 @@ func (lb *LoadBalancer) selectLeastConnections(services []*RegisteredService) *R
 			selected = service
 		}
 	}
-	
+
 	return selected
 }
 
@@ -215,7 +241,7 @@ func (lb *LoadBalancer) selectWeighted(services []*RegisteredService) *Registere
 	if len(services) == 0 {
 		return nil
 	}
-	
+
 	// Calculate total weight
 	totalWeight := 0
 	for _, service := range services {
@@ -226,15 +252,15 @@ func (lb *LoadBalancer) selectWeighted(services []*RegisteredService) *Registere
 		}
 		totalWeight += weight
 	}
-	
+
 	if totalWeight == 0 {
 		return services[0]
 	}
-	
+
 	// Select based on weighted random
 	randValue := rand.Intn(totalWeight)
 	currentWeight := 0
-	
+
 	for _, service := range services {
 		state := lb.getOrCreateServiceState(service)
 		weight := state.Weight
@@ -246,7 +272,7 @@ func (lb *LoadBalancer) selectWeighted(services []*RegisteredService) *Registere
 			return service
 		}
 	}
-	
+
 	return services[0]
 }
 
@@ -255,7 +281,7 @@ func (lb *LoadBalancer) selectHash(services []*RegisteredService, criteria Selec
 	if len(services) == 0 {
 		return nil
 	}
-	
+
 	// Create hash key from criteria
 	hashKey := ""
 	if criteria.LoadBalancing != "" {
@@ -266,12 +292,12 @@ func (lb *LoadBalancer) selectHash(services []*RegisteredService, criteria Selec
 		// Use a default key - perhaps client IP or session ID
 		hashKey = "default"
 	}
-	
+
 	// Hash the key
 	hasher := fnv.New32a()
 	hasher.Write([]byte(hashKey))
 	hash := hasher.Sum32()
-	
+
 	// Select service based on hash
 	index := int(hash) % len(services)
 	return services[index]
@@ -282,7 +308,7 @@ func (lb *LoadBalancer) selectRandom(services []*RegisteredService) *RegisteredS
 	if len(services) == 0 {
 		return nil
 	}
-	
+
 	index := rand.Intn(len(services))
 	return services[index]
 }
@@ -291,7 +317,7 @@ func (lb *LoadBalancer) selectRandom(services []*RegisteredService) *RegisteredS
 func (lb *LoadBalancer) updateServiceSelection(service *RegisteredService) {
 	lb.mutex.Lock()
 	defer lb.mutex.Unlock()
-	
+
 	state := lb.getOrCreateServiceState(service)
 	state.LastUsed = time.Now()
 	state.ActiveRequests++
@@ -302,16 +328,16 @@ func (lb *LoadBalancer) updateServiceSelection(service *RegisteredService) {
 func (lb *LoadBalancer) RecordSuccess(service *RegisteredService, duration time.Duration) {
 	lb.mutex.Lock()
 	defer lb.mutex.Unlock()
-	
+
 	state := lb.getOrCreateServiceState(service)
 	state.ActiveRequests--
 	state.SuccessRequests++
-	
+
 	// Update service metrics
 	service.Metrics.RequestCount++
 	service.Metrics.LastRequestTime = time.Now()
 	service.Metrics.AverageLatency = lb.updateAverageLatency(service.Metrics.AverageLatency, duration, service.Metrics.RequestCount)
-	
+
 	// Record metrics
 	lb.metrics.Inc("load_balancer_requests_success_total",
 		"service_id", service.ID,
@@ -319,7 +345,7 @@ func (lb *LoadBalancer) RecordSuccess(service *RegisteredService, duration time.
 	lb.metrics.Observe("load_balancer_request_duration_seconds", duration.Seconds(),
 		"service_id", service.ID,
 		"service_type", service.Type)
-	
+
 	lb.logger.Debug("request_completed_successfully",
 		"service_id", service.ID,
 		"duration", duration,
@@ -330,37 +356,37 @@ func (lb *LoadBalancer) RecordSuccess(service *RegisteredService, duration time.
 func (lb *LoadBalancer) RecordFailure(service *RegisteredService, err error) {
 	lb.mutex.Lock()
 	defer lb.mutex.Unlock()
-	
+
 	state := lb.getOrCreateServiceState(service)
 	state.ActiveRequests--
 	state.FailedRequests++
-	
+
 	// Update service metrics
 	service.Metrics.ErrorCount++
 	if service.Metrics.RequestCount > 0 {
 		service.Metrics.ErrorRate = float64(service.Metrics.ErrorCount) / float64(service.Metrics.RequestCount)
 	}
-	
+
 	// Check if circuit breaker should be opened
 	if lb.config.CircuitBreakerEnabled && state.TotalRequests > 10 {
 		errorRate := float64(state.FailedRequests) / float64(state.TotalRequests)
 		if errorRate > (1.0 - lb.config.HealthyThreshold) {
 			state.CircuitOpen = true
 			state.CircuitOpenedAt = time.Now()
-			
+
 			lb.logger.Warn("circuit_breaker_opened",
 				"service_id", service.ID,
 				"error_rate", errorRate,
 				"threshold", 1.0-lb.config.HealthyThreshold)
 		}
 	}
-	
+
 	// Record metrics
 	lb.metrics.Inc("load_balancer_requests_failure_total",
 		"service_id", service.ID,
 		"service_type", service.Type,
 		"error_type", fmt.Sprintf("%T", err))
-	
+
 	lb.logger.Warn("request_failed",
 		"service_id", service.ID,
 		"error", err,
@@ -372,13 +398,12 @@ func (lb *LoadBalancer) RecordFailure(service *RegisteredService, err error) {
 func (lb *LoadBalancer) GetServiceStats(serviceID string) *ServiceState {
 	lb.mutex.RLock()
 	defer lb.mutex.RUnlock()
-	
+
 	if state, exists := lb.serviceState[serviceID]; exists {
 		// Return a copy to avoid race conditions
-		stateCopy := *state
-		return &stateCopy
+		return state.Copy()
 	}
-	
+
 	return nil
 }
 
@@ -386,13 +411,12 @@ func (lb *LoadBalancer) GetServiceStats(serviceID string) *ServiceState {
 func (lb *LoadBalancer) GetAllStats() map[string]*ServiceState {
 	lb.mutex.RLock()
 	defer lb.mutex.RUnlock()
-	
+
 	result := make(map[string]*ServiceState)
 	for id, state := range lb.serviceState {
-		stateCopy := *state
-		result[id] = &stateCopy
+		result[id] = state.Copy()
 	}
-	
+
 	return result
 }
 
@@ -400,7 +424,7 @@ func (lb *LoadBalancer) GetAllStats() map[string]*ServiceState {
 func (lb *LoadBalancer) ResetCircuitBreaker(serviceID string) {
 	lb.mutex.Lock()
 	defer lb.mutex.Unlock()
-	
+
 	if state, exists := lb.serviceState[serviceID]; exists {
 		state.CircuitOpen = false
 		lb.logger.Info("circuit_breaker_manually_reset", "service_id", serviceID)
@@ -412,13 +436,13 @@ func (lb *LoadBalancer) getOrCreateServiceState(service *RegisteredService) *Ser
 	if state, exists := lb.serviceState[service.ID]; exists {
 		return state
 	}
-	
+
 	state := &ServiceState{
 		Service:  service,
 		Weight:   1, // Default weight
 		Sessions: make(map[string]time.Time),
 	}
-	
+
 	lb.serviceState[service.ID] = state
 	return state
 }
@@ -428,11 +452,11 @@ func (lb *LoadBalancer) updateAverageLatency(currentAvg time.Duration, newDurati
 	if totalRequests == 1 {
 		return newDuration
 	}
-	
+
 	// Calculate weighted average
 	weight := float64(totalRequests-1) / float64(totalRequests)
 	newWeight := 1.0 / float64(totalRequests)
-	
+
 	avgNanos := float64(currentAvg.Nanoseconds())*weight + float64(newDuration.Nanoseconds())*newWeight
 	return time.Duration(int64(avgNanos))
 }
@@ -441,9 +465,9 @@ func (lb *LoadBalancer) updateAverageLatency(currentAvg time.Duration, newDurati
 func (lb *LoadBalancer) CleanupStaleState() {
 	lb.mutex.Lock()
 	defer lb.mutex.Unlock()
-	
+
 	allServices := lb.registry.GetAllServices()
-	
+
 	// Remove state for services that no longer exist
 	for serviceID := range lb.serviceState {
 		if _, exists := allServices[serviceID]; !exists {
