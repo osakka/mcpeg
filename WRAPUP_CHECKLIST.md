@@ -148,6 +148,17 @@ This checklist can be automated with:
 
 ---
 
-**Last Updated**: 2025-07-11
-**Version**: 1.0
+**Last Updated**: 2025-07-12
+**Version**: 1.1
 **Maintained By**: MCpeg Development Team
+
+## **Wrapup Command Integration**
+When you mention "wrapup" after completing any development task, I will automatically execute this complete checklist including:
+1. Update CHANGELOG.md with implemented changes
+2. Create relevant ADRs for architectural decisions
+3. Update README.md with new features/improvements  
+4. Stage and commit all changes with proper attribution
+5. Push changes to remote repository
+6. Verify build and test execution
+
+This ensures consistent documentation and version control practices across all development activities.
