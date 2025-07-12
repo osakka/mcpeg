@@ -738,18 +738,24 @@ func (sr *ServiceRegistry) performHealthCheck(ctx context.Context, service *Regi
 // buildHealthCheckURL constructs the health check URL for a service
 func (sr *ServiceRegistry) buildHealthCheckURL(service *RegisteredService) string {
 	// Use custom health path if specified in metadata
-	healthPath := service.Metadata["health_path"]
-	if healthPath == "" {
-		healthPath = "/health" // default
+	healthPath := "/health" // default
+	if customPath, ok := service.Metadata["health_path"].(string); ok && customPath != "" {
+		healthPath = customPath
 	}
 
-	// Determine protocol
+	// Check if endpoint already has a scheme
+	if strings.Contains(service.Endpoint, "://") {
+		// Endpoint already has full URL - just append health path
+		return service.Endpoint + healthPath
+	}
+
+	// Determine protocol for endpoints without scheme
 	protocol := "http"
 	if useTLS, ok := service.Metadata["tls"]; ok && useTLS == "true" {
 		protocol = "https"
 	}
 
-	// Build URL
+	// Build URL with protocol prefix
 	return fmt.Sprintf("%s://%s%s", protocol, service.Endpoint, healthPath)
 }
 

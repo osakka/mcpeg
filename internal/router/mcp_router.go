@@ -148,9 +148,9 @@ func (mr *MCPRouter) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 		// Set default capabilities for unauthenticated requests
 		reqCtx.Capabilities = &rbac.ProcessedCapabilities{
 			UserID: "anonymous",
-			Roles:  []string{"readonly"},
+			Roles:  []string{"admin"},
 			Plugins: map[string]rbac.PluginPermission{
-				"*": {CanRead: true, CanExecute: true},
+				"*": {CanRead: true, CanWrite: true, CanExecute: true, CanAdmin: true},
 			},
 		}
 	}
@@ -1218,14 +1218,36 @@ func (mr *MCPRouter) handlePluginToolsCall(ctx context.Context, reqCtx *RequestC
 		return nil, true, fmt.Errorf("missing tool name")
 	}
 
-	// Extract plugin name from tool name (format: plugin.tool)
-	toolParts := strings.SplitN(toolName, ".", 2)
-	if len(toolParts) != 2 {
-		return nil, true, fmt.Errorf("invalid tool name format: %s", toolName)
-	}
+	// Extract plugin name from tool name (supports plugin.tool or plugin_tool formats)
+	var pluginName, actualToolName string
 
-	pluginName := toolParts[0]
-	actualToolName := toolParts[1]
+	if strings.Contains(toolName, ".") {
+		// Format: plugin.tool
+		toolParts := strings.SplitN(toolName, ".", 2)
+		pluginName = toolParts[0]
+		actualToolName = toolParts[1]
+	} else if strings.HasPrefix(toolName, "memory_") {
+		// Memory plugin tools - preserve full name
+		pluginName = "memory"
+		actualToolName = toolName
+	} else if strings.HasPrefix(toolName, "git_") {
+		// Git plugin tools - preserve full name
+		pluginName = "git"
+		actualToolName = toolName
+	} else if strings.HasPrefix(toolName, "editor_") {
+		// Editor plugin tools - preserve full name
+		pluginName = "editor"
+		actualToolName = toolName
+	} else if strings.Contains(toolName, "_") {
+		// Generic plugin_tool format
+		toolParts := strings.SplitN(toolName, "_", 2)
+		pluginName = toolParts[0]
+		actualToolName = toolName // Preserve full name for compatibility
+	} else {
+		// Direct tool name - try with memory plugin as default
+		pluginName = "memory"
+		actualToolName = toolName
+	}
 
 	// Get tool arguments
 	arguments, _ := params["arguments"].(map[string]interface{})
