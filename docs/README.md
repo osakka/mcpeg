@@ -15,10 +15,6 @@ This directory contains all project documentation.
   - Contribution guidelines
   - Security guidelines
   
-- `/api/` - API documentation (generated)
-  - Auto-generated from API schemas
-  - Do not edit manually
-  
 - `/architecture/` - System architecture documentation
   - High-level design documents
   - Component interaction diagrams

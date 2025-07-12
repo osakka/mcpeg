@@ -38,8 +38,8 @@ See [Project Structure Guide](docs/architecture/project-structure.md) for detail
 - `/cmd` - Application entry points
 - `/internal` - Private application code  
 - `/pkg` - Public Go packages
-- `/src` - Generated API schemas only
-- `/build` - Build artifacts
+- `/api` - OpenAPI specifications and generated schemas
+- `/build` - Build artifacts (runtime data, binaries)
 - `/assets` - Logo and branding assets
 - `/docs` - All documentation
   - `/adrs` - Architecture Decision Records

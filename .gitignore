@@ -157,4 +157,4 @@ core.*
 !yarn.lock
 !Gemfile.lock
 !Pipfile.lock
-!poetry.lock
+!poetry.lock/trash/
