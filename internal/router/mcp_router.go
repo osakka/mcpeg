@@ -1156,6 +1156,8 @@ func (mr *MCPRouter) tryPluginRouting(ctx context.Context, reqCtx *RequestContex
 		return mr.handlePluginToolsCall(ctx, reqCtx, mcpReq)
 	case "resources/list":
 		return mr.handlePluginResourcesList(ctx, reqCtx, mcpReq)
+	case "resources/read":
+		return mr.handlePluginResourcesRead(ctx, reqCtx, mcpReq)
 	case "prompts/list":
 		return mr.handlePluginPromptsList(ctx, reqCtx, mcpReq)
 
@@ -1373,6 +1375,72 @@ func (mr *MCPRouter) handlePluginResourcesList(ctx context.Context, reqCtx *Requ
 
 	return map[string]interface{}{
 		"resources": allResources,
+	}, true, nil
+}
+
+// handlePluginResourcesRead handles resources/read through plugin system
+func (mr *MCPRouter) handlePluginResourcesRead(ctx context.Context, reqCtx *RequestContext, mcpReq *types.Request) (interface{}, bool, error) {
+	reqCtx.IsPluginCall = true
+
+	// Parse resource read parameters
+	var params struct {
+		URI string `json:"uri"`
+	}
+
+	if mcpReq.Params != nil {
+		if err := json.Unmarshal(mcpReq.Params, &params); err != nil {
+			return nil, true, fmt.Errorf("failed to parse resource read parameters: %w", err)
+		}
+	}
+
+	if params.URI == "" {
+		return nil, true, fmt.Errorf("missing resource URI")
+	}
+
+	mr.logger.Debug("plugin_resource_read_started",
+		"request_id", reqCtx.RequestID,
+		"user_id", reqCtx.UserID,
+		"uri", params.URI)
+
+	// Read the resource using the plugin handler
+	result, err := mr.pluginHandler.ReadPluginResource(ctx, params.URI, reqCtx.Capabilities)
+	if err != nil {
+		mr.logger.Error("plugin_resource_read_failed",
+			"request_id", reqCtx.RequestID,
+			"uri", params.URI,
+			"error", err)
+		return nil, true, err
+	}
+
+	mr.metrics.Inc("plugin_resource_read_calls", "user_id", reqCtx.UserID)
+	mr.logger.Info("plugin_resource_read_completed",
+		"request_id", reqCtx.RequestID,
+		"uri", params.URI)
+
+	// Convert the plugin result to proper MCP ResourceContent format
+	content := map[string]interface{}{
+		"uri":      params.URI,
+		"mimeType": "application/json",
+	}
+
+	// Convert result to JSON text if it's not already a string
+	switch v := result.(type) {
+	case string:
+		content["text"] = v
+		content["mimeType"] = "text/plain"
+	default:
+		// Convert to JSON string for structured data
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			content["text"] = string(jsonBytes)
+		} else {
+			// Fallback to string representation
+			content["text"] = fmt.Sprintf("%v", v)
+		}
+	}
+
+	// Return the result in proper MCP format
+	return map[string]interface{}{
+		"contents": []interface{}{content},
 	}, true, nil
 }
 

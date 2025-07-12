@@ -211,15 +211,16 @@ result := discoveryEngine.DiscoverPlugin(ctx, pluginName)
 
 ### 2. Interactive Testing
 - **MCP Inspector**: Visual testing interface
-- **Manual Validation**: cURL-based protocol testing
-- **Real-world Testing**: Claude Desktop integration
+- **Manual Validation**: cURL-based protocol testing including resources/read
+- **Real-world Testing**: Claude Desktop integration with full resource access
 
 ## Performance Characteristics
 
 ### 1. Response Times (Local Testing)
 - **Tool Discovery**: ~10-50ms
 - **Tool Execution**: ~50-200ms (tool-dependent)
-- **Resource Access**: ~5-20ms
+- **Resource Discovery**: ~5-20ms
+- **Resource Reading**: ~10-30ms (plugin-dependent)
 - **Prompt Retrieval**: ~5-20ms
 
 ### 2. Concurrency
@@ -238,9 +239,9 @@ result := discoveryEngine.DiscoverPlugin(ctx, pluginName)
 
 ### 2. Input Validation
 - **JSON-RPC Validation**: Protocol compliance checking
-- **Parameter Validation**: Type and constraint validation
+- **Parameter Validation**: Type and constraint validation including URI validation
 - **Request Sanitization**: Input cleaning and validation
-- **Response Validation**: Output format verification
+- **Response Validation**: Output format verification for all MCP operations
 
 ## Deployment Architecture
 

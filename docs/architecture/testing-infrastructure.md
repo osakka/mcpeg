@@ -125,6 +125,11 @@ curl -X POST http://localhost:8080/mcp \
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "id": 3, "method": "resources/list", "params": {}}'
+
+# Test resource reading
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": "plugin://memory/memory_stats"}}'
 ```
 
 ### 3. Performance Validation
@@ -133,6 +138,7 @@ curl -X POST http://localhost:8080/mcp \
 - `tools/list`: ~10-50ms
 - `tools/call`: ~50-200ms (tool dependent)
 - `resources/list`: ~5-20ms
+- `resources/read`: ~10-30ms (plugin dependent)
 - `prompts/list`: ~5-20ms
 
 **Concurrency Testing**:
@@ -148,6 +154,7 @@ curl -X POST http://localhost:8080/mcp \
 | **Tool Discovery** | Automated | 20 tools (Memory, Git, Editor) | ✅ Passing |
 | **Tool Execution** | Automated | Plugin tool invocation | ✅ Passing |
 | **Resource Discovery** | Automated | 6 resources across plugins | ✅ Passing |
+| **Resource Reading** | Automated | Plugin resource access via URI | ✅ Passing |
 | **Prompt Discovery** | Automated | 6 prompts across plugins | ✅ Passing |
 | **Error Handling** | Manual | Invalid requests, edge cases | ✅ Passing |
 | **Concurrency** | Automated | Thread-safe operations | ✅ Fixed |

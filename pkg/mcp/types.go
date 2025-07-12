@@ -24,6 +24,9 @@ type PluginHandler interface {
 	// GetPluginResources returns the resources available for a plugin
 	GetPluginResources(pluginName string, capabilities *rbac.ProcessedCapabilities) ([]Resource, error)
 
+	// ReadPluginResource reads a specific resource from a plugin
+	ReadPluginResource(ctx context.Context, uri string, capabilities *rbac.ProcessedCapabilities) (interface{}, error)
+
 	// GetPluginPrompts returns the prompts available for a plugin
 	GetPluginPrompts(pluginName string, capabilities *rbac.ProcessedCapabilities) ([]Prompt, error)
 

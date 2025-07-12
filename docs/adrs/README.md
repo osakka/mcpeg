@@ -21,10 +21,22 @@ An Architecture Decision Record captures an important architectural decision mad
 | 2025-07-11 | [ADR-009](009-concurrency-and-memory-management.md) | Concurrency and Memory Management Patterns | Accepted |
 | 2025-07-11 | [ADR-010](010-multi-service-gateway.md) | Multi-Service Gateway Architecture | Accepted |
 | 2025-07-11 | [ADR-011](011-data-storage-strategy.md) | Data Storage Strategy | Accepted |
-| 2025-07-11 | [ADR-012](012-advanced-mcp-services.md) | Advanced MCP Services (Git, Editor, Search, Memory) | Proposed |
-| 2025-07-11 | [ADR-013](013-metrics-as-core-infrastructure.md) | Metrics as Core Infrastructure | Proposed |
-| 2025-07-11 | [ADR-014](014-missing-infrastructure-components.md) | Missing Infrastructure Components | Proposed |
-| 2025-07-11 | [ADR-015](015-mcp-security-and-registration.md) | MCP Security and Registration Requirements | Proposed |
+| 2025-07-11 | [ADR-012](012-advanced-mcp-services.md) | Advanced MCP Services (Git, Editor, Search, Memory) | Accepted |
+| 2025-07-11 | [ADR-013](013-metrics-as-core-infrastructure.md) | Metrics as Core Infrastructure | Accepted |
+| 2025-07-11 | [ADR-014](014-missing-infrastructure-components.md) | Missing Infrastructure Components | Accepted |
+| 2025-07-11 | [ADR-015](015-mcp-security-and-registration.md) | MCP Security and Registration Requirements | Accepted |
+| 2025-07-11 | [ADR-016](016-unified-binary-architecture.md) | Unified Binary Architecture | Accepted |
+| 2025-07-11 | [ADR-017](017-production-ready-implementation-complete.md) | Production-Ready Implementation Complete | Accepted |
+| 2025-07-11 | [ADR-018](018-production-http-middleware-architecture.md) | Production HTTP Middleware Architecture | Accepted |
+| 2025-07-11 | [ADR-019](019-brand-identity-and-user-experience-architecture.md) | Brand Identity and User Experience Architecture | Accepted |
+| 2025-07-11 | [ADR-020](020-plugin-system-foundation-architecture.md) | Plugin System Foundation Architecture | Accepted |
+| 2025-07-11 | [ADR-021](021-daemon-process-management.md) | Daemon Process Management Architecture | Accepted |
+| 2025-07-12 | [ADR-022](022-plugin-registration-service-registry.md) | Plugin Registration Service Registry | Accepted |
+| 2025-07-12 | [ADR-023](023-mcp-plugin-integration-phase-1.md) | MCP Plugin Integration Phase 1 | Accepted |
+| 2025-07-12 | [ADR-024](024-mcp-plugin-integration-complete-phases-1-4.md) | MCP Plugin Integration Complete (Phases 1-4) | Accepted |
+| 2025-07-12 | [ADR-025](025-phase-2-advanced-plugin-discovery-intelligence.md) | Phase 2 Advanced Plugin Discovery and Intelligence | Accepted |
+| 2025-07-12 | [ADR-026](026-path-flag-standardization.md) | Path and Flag Standardization | Accepted |
+| 2025-07-12 | [ADR-027](027-mcp-resources-read-protocol-compliance.md) | MCP Resources/Read Protocol Compliance | Accepted |
 
 ## ADR Status
 

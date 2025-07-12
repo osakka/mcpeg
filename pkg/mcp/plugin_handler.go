@@ -266,6 +266,64 @@ func (ph *PluginHandlerImpl) GetPluginResources(pluginName string, capabilities 
 	return mcpResources, nil
 }
 
+// ReadPluginResource reads a specific resource from a plugin
+func (ph *PluginHandlerImpl) ReadPluginResource(ctx context.Context, uri string, capabilities *rbac.ProcessedCapabilities) (interface{}, error) {
+	// Parse plugin URI format: plugin://pluginName/resourceName
+	if !strings.HasPrefix(uri, "plugin://") {
+		return nil, fmt.Errorf("invalid plugin resource URI: %s", uri)
+	}
+	
+	// Extract plugin name and resource name from URI
+	uriParts := strings.TrimPrefix(uri, "plugin://")
+	parts := strings.SplitN(uriParts, "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid plugin resource URI format: %s", uri)
+	}
+	
+	pluginName := parts[0]
+	resourceName := parts[1]
+	
+	// Check access permissions
+	if !ph.hasPluginAccess(pluginName, capabilities) {
+		return nil, fmt.Errorf("access denied to plugin: %s", pluginName)
+	}
+	
+	// Get user's permissions for this plugin
+	permission := capabilities.Plugins[pluginName]
+	if wildcardPerm, hasWildcard := capabilities.Plugins["*"]; hasWildcard && len(capabilities.Plugins) == 1 {
+		permission = wildcardPerm
+	}
+	if !permission.CanRead {
+		return nil, fmt.Errorf("read access denied for plugin: %s", pluginName)
+	}
+	
+	// Get the plugin instance
+	plugin, exists := ph.pluginManager.GetPlugin(pluginName)
+	if !exists {
+		return nil, fmt.Errorf("plugin not found: %s", pluginName)
+	}
+	
+	// Call the plugin's ReadResource method
+	result, err := plugin.ReadResource(ctx, resourceName)
+	if err != nil {
+		ph.logger.Error("plugin_resource_read_failed",
+			"plugin", pluginName,
+			"resource", resourceName,
+			"uri", uri,
+			"error", err)
+		return nil, fmt.Errorf("failed to read resource %s from plugin %s: %w", resourceName, pluginName, err)
+	}
+	
+	ph.logger.Info("plugin_resource_read_completed",
+		"plugin", pluginName,
+		"resource", resourceName,
+		"uri", uri)
+	
+	ph.metrics.Inc("plugin_resource_reads_total", "plugin", pluginName, "resource", resourceName, "status", "success")
+	
+	return result, nil
+}
+
 // GetPluginPrompts returns the prompts available for a plugin
 func (ph *PluginHandlerImpl) GetPluginPrompts(pluginName string, capabilities *rbac.ProcessedCapabilities) ([]Prompt, error) {
 	if !ph.hasPluginAccess(pluginName, capabilities) {
