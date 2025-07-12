@@ -85,7 +85,7 @@ debug/
 *.pprof
 
 # Binary output
-mcpeg
+/mcpeg
 mcpeg-*
 
 # Test artifacts
