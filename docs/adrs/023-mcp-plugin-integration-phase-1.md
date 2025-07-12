@@ -1,8 +1,7 @@
 # ADR-023: MCP Plugin Integration Phase 1
 
 ## Status
-
-Accepted
+**ACCEPTED** - *2025-07-12*
 
 ## Context
 

@@ -1,7 +1,7 @@
 # ADR-020: Plugin System Foundation Architecture
 
 ## Status
-**ACCEPTED** - *2025-07-11*
+**ACCEPTED** - *2025-07-12*
 
 ## Context
 

@@ -1,8 +1,7 @@
 # ADR-025: Phase 2 Advanced Plugin Discovery and Intelligence
 
 ## Status
-
-Accepted and Implemented
+**ACCEPTED** - *2025-07-12*
 
 ## Context
 

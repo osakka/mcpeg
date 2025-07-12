@@ -1,8 +1,7 @@
 # ADR-001: Record Architecture Decisions
 
 ## Status
-
-Proposed
+**ACCEPTED** - *2025-07-11*
 
 ## Context
 

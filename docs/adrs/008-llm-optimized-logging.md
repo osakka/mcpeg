@@ -1,8 +1,7 @@
 # ADR-008: LLM-Optimized Logging for 100% Troubleshooting
 
 ## Status
-
-Proposed
+**ACCEPTED** - *2025-07-11*
 
 ## Context
 

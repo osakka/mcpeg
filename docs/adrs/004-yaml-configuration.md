@@ -1,8 +1,7 @@
 # ADR-004: Use YAML for Service Configuration
 
 ## Status
-
-Proposed
+**ACCEPTED** - *2025-07-11*
 
 ## Context
 

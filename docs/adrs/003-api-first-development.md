@@ -1,8 +1,7 @@
 # ADR-003: Adopt API-First Development Methodology
 
 ## Status
-
-Proposed
+**ACCEPTED** - *2025-07-11*
 
 ## Context
 

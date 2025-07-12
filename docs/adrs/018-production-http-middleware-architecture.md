@@ -1,7 +1,7 @@
 # ADR-018: Production HTTP Middleware Architecture
 
 ## Status
-Accepted
+**ACCEPTED** - *2025-07-11*
 
 ## Context
 

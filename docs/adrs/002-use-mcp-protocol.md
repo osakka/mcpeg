@@ -1,8 +1,7 @@
 # ADR-002: Use Model Context Protocol as Core Protocol
 
 ## Status
-
-Proposed
+**ACCEPTED** - *2025-07-11*
 
 ## Context
 
