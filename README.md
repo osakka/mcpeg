@@ -256,4 +256,4 @@ This project uses XVC methodology. When contributing:
 
 ## License
 
-[To be determined]
+MIT License - see [LICENSE](LICENSE) file for details.
