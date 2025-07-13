@@ -7,6 +7,8 @@
   **Pronounced "MC peg" • The Peg That Connects Model Contexts**
 </div>
 
+> ⚠️ **EXPERIMENTAL**: MCpeg is experimental software under heavy development. Built using the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) framework for rapid human-LLM collaboration. APIs and functionality may change significantly. Not recommended for production use.
+
 **MCpeg** is a gateway service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side. Like a peg that connects different pieces, MCpeg bridges the gap between MCP-compliant clients and diverse backend services.
 
 ## Overview
