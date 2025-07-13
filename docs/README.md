@@ -1,6 +1,6 @@
 # MCpeg Documentation
 
-**MCpeg** (Model Context Protocol Enablement Gateway) is a production-ready MCP gateway that bridges MCP-compliant clients with diverse backend services through a comprehensive plugin architecture.
+**MCpeg** (Model Context Protocol Enablement Gateway) is an experimental MCP gateway that bridges MCP-compliant clients with diverse backend services through a plugin architecture.
 
 ## Quick Navigation
 

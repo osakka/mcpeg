@@ -8,8 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MIT License for open source distribution
+- Comprehensive package-level documentation with LLM-optimized structure
+- Experimental software disclaimer with XVC methodology reference
+- Single source of truth enforcement with duplicate file cleanup
 - Documentation taxonomy and organization improvements
 - Comprehensive documentation restructure following industry standards
+
+### Changed  
+- Removed false production-ready claims from README and documentation
+- Updated project status to accurately reflect active development phase
+- Corrected ADR-017 to remove misleading production claims
+
+### Fixed
+- Removed duplicate development configuration files (dev-config.yaml)
+- Cleaned up empty directories (internal/config, internal/validation, pkg/templates, pkg/transform)
+- Removed test data files from trash folder
 
 ## [1.0.0] - 2025-07-12
 

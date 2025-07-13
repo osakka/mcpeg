@@ -1,9 +1,0 @@
-{
-  "dotted_name_test": "Testing dotted tool names",
-  "mcp_integration": "MCP Gateway Fully Operational",
-  "phase1_complete": "Tool listing now works perfectly",
-  "regression_test": "No regression confirmed",
-  "test_access": "Access control test",
-  "test_key": "Hello from MCP test",
-  "test_registration": "MCpeg service registration test successful"
-}
