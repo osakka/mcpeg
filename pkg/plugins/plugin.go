@@ -1,3 +1,60 @@
+// Package plugins provides a comprehensive plugin system for MCPEG service extensions.
+//
+// This package implements the Model Context Protocol (MCP) plugin architecture that enables
+// dynamic service discovery, registration, and management of external service adapters:
+//
+//   - Plugin interface definition with MCP protocol support
+//   - Plugin lifecycle management (initialize, shutdown, health checks)
+//   - Tool execution capabilities with comprehensive error handling
+//   - Resource access management with URI-based addressing
+//   - Prompt template support for dynamic content generation
+//   - Plugin manager for centralized plugin orchestration
+//   - Base plugin implementation for common functionality
+//
+// The plugin system supports the core MCP protocol operations:
+//   - Tools: Executable functions with structured input/output
+//   - Resources: Accessible data sources with URI-based addressing
+//   - Prompts: Template-based content generation with parameterization
+//
+// Plugin architecture features:
+//   - Comprehensive lifecycle management with graceful shutdown
+//   - Performance monitoring with metrics collection
+//   - Health check capabilities for service reliability
+//   - Structured logging for debugging and troubleshooting
+//   - Configuration management with environment-specific settings
+//   - Error handling with detailed context for diagnostics
+//
+// Example plugin implementation:
+//
+//	type MyPlugin struct {
+//	    *plugins.BasePlugin
+//	    config MyPluginConfig
+//	}
+//	
+//	func (p *MyPlugin) GetTools() []registry.ToolDefinition {
+//	    return []registry.ToolDefinition{
+//	        {
+//	            Name:        "my_tool",
+//	            Description: "Example tool implementation",
+//	            InputSchema: myToolSchema,
+//	        },
+//	    }
+//	}
+//	
+//	func (p *MyPlugin) CallTool(ctx context.Context, name string, args json.RawMessage) (interface{}, error) {
+//	    switch name {
+//	    case "my_tool":
+//	        return p.handleMyTool(ctx, args)
+//	    default:
+//	        return nil, fmt.Errorf("unknown tool: %s", name)
+//	    }
+//	}
+//
+// Plugin manager usage:
+//
+//	manager := plugins.NewPluginManager(logger, metrics)
+//	manager.RegisterPlugin(myPlugin)
+//	manager.InitializeAllPlugins(ctx, configs)
 package plugins
 
 import (

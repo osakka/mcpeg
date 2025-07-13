@@ -1,3 +1,24 @@
+// Package main provides the MCPEG (Model Context Protocol Enablement Gateway) unified binary.
+//
+// This package implements the main entry point for the MCPEG gateway system, providing
+// a unified binary with multiple subcommands for different operational modes:
+//
+//   - gateway: Start the MCP gateway server for request routing and service management
+//   - codegen: Generate Go code from OpenAPI specifications
+//   - validate: Validate OpenAPI specifications and configuration files
+//   - version: Display version and build information
+//   - help: Show comprehensive help documentation
+//
+// The application supports daemon mode operation with complete process management,
+// health monitoring, and graceful shutdown capabilities. All operations include
+// comprehensive logging optimized for LLM-based troubleshooting and debugging.
+//
+// Example usage:
+//
+//	mcpeg gateway --config /etc/mcpeg/config.yaml --daemon
+//	mcpeg codegen --input api/openapi.yaml --output pkg/generated/
+//	mcpeg validate --config /etc/mcpeg/config.yaml
+//	mcpeg version
 package main
 
 import (

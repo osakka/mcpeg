@@ -1,3 +1,55 @@
+// Package logging provides comprehensive, LLM-optimized structured logging for MCPEG.
+//
+// This package implements a structured logging system specifically designed for AI-powered
+// debugging and troubleshooting, with complete context preservation and standardized formatting:
+//
+//   - Structured JSON logging with consistent field naming
+//   - Context propagation with trace and span ID support
+//   - Component-based logger creation for modular systems
+//   - Multiple output destinations (stdout, file, remote)
+//   - LLM-optimized log format for automated analysis
+//   - Performance-conscious logging with minimal overhead
+//   - Comprehensive error context preservation
+//
+// LLM-Optimized Features:
+//   - Consistent structured format for automated parsing
+//   - Complete context preservation in every log entry
+//   - Standardized field naming across all components
+//   - Error context with stack traces and operation details
+//   - Correlation IDs for distributed request tracing
+//   - Machine-readable timestamps and severity levels
+//
+// The logging system follows these design principles:
+//   - Every log entry contains complete operational context
+//   - Structured data over free-form text messages
+//   - Consistent field naming for automated analysis
+//   - Component-based organization for system clarity
+//   - Performance-optimized with minimal allocation overhead
+//
+// Example usage:
+//
+//	logger := logging.NewLogger(logging.Config{
+//	    Level:      "INFO",
+//	    Format:     "json",
+//	    Output:     "stdout",
+//	    Component:  "gateway-server",
+//	})
+//	
+//	logger.Info("request_processed",
+//	    "method", "POST",
+//	    "path", "/api/v1/tools/call",
+//	    "duration_ms", 150,
+//	    "status_code", 200,
+//	    "user_id", "user123")
+//
+// Context-aware logging:
+//
+//	ctxLogger := logger.WithContext(ctx).WithTraceID(traceID)
+//	ctxLogger.Error("database_connection_failed",
+//	    "database", "postgres",
+//	    "host", "db.example.com",
+//	    "error", err,
+//	    "retry_count", 3)
 package logging
 
 import (

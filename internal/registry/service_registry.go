@@ -1,3 +1,61 @@
+// Package registry provides comprehensive service discovery and management for MCPEG gateway operations.
+//
+// This package implements the core service registry that manages all registered MCP service adapters,
+// providing dynamic service discovery, health monitoring, and intelligent request routing:
+//
+//   - Service registration and lifecycle management
+//   - Dynamic service discovery with capability analysis
+//   - Health monitoring with circuit breaker pattern implementation
+//   - Load balancing with multiple algorithm support
+//   - Service metadata and capability management
+//   - Performance metrics collection and monitoring
+//   - Security and access control integration
+//
+// The service registry supports enterprise-grade features:
+//   - Multi-protocol service support (HTTP, gRPC, WebSocket)
+//   - Circuit breaker pattern for fault tolerance
+//   - Service versioning and rolling updates
+//   - Comprehensive metrics and observability
+//   - Tag-based service filtering and selection
+//   - Configuration management per service
+//   - Background health monitoring with automatic recovery
+//
+// Service registration workflow:
+//   1. Service discovery identifies available services
+//   2. Capability analysis determines service features
+//   3. Health checks validate service readiness
+//   4. Load balancer configuration for traffic distribution
+//   5. Circuit breaker initialization for fault tolerance
+//   6. Continuous monitoring and status updates
+//
+// Example service registration:
+//
+//	service := &RegisteredService{
+//	    ID:          "service-001",
+//	    Name:        "file-processor",
+//	    Type:        "mcp-adapter",
+//	    Version:     "1.0.0",
+//	    Endpoint:    "http://localhost:8080",
+//	    Protocol:    "http",
+//	    Tools:       []ToolDefinition{...},
+//	    Resources:   []ResourceDefinition{...},
+//	    Status:      StatusActive,
+//	}
+//	
+//	err := registry.RegisterService(ctx, service)
+//	if err != nil {
+//	    log.Printf("Service registration failed: %v", err)
+//	}
+//
+// Service discovery and routing:
+//
+//	services := registry.DiscoverServices(ctx, ServiceFilter{
+//	    Type: "mcp-adapter",
+//	    Tags: []string{"file-processing"},
+//	    HealthStatus: HealthHealthy,
+//	})
+//	
+//	service := registry.SelectService(services, LoadBalanceRoundRobin)
 package registry
 
 import (

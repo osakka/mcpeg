@@ -1,3 +1,48 @@
+// Package auth provides comprehensive authentication and authorization mechanisms for MCPEG.
+//
+// This package implements JWT-based authentication with support for RSA key validation,
+// role-based access control, and comprehensive security features:
+//
+//   - JWT token validation with RSA signature verification
+//   - Token generation and signing capabilities (when private key available)
+//   - Clock skew tolerance for distributed system compatibility
+//   - Comprehensive claims validation (issuer, audience, expiration)
+//   - Role-based authorization with flexible role mapping
+//   - Session management with session ID tracking
+//   - Metrics and logging integration for security monitoring
+//
+// The JWT implementation follows RFC 7519 standards with additional security enhancements:
+//   - Mandatory RSA signature verification (no symmetric keys)
+//   - Configurable clock skew tolerance (default 5 minutes)
+//   - Comprehensive error reporting for troubleshooting
+//   - Performance metrics for token validation latency
+//
+// Example usage:
+//
+//	config := auth.JWTConfig{
+//	    PublicKeyPath:  "/etc/mcpeg/keys/jwt-public.pem",
+//	    PrivateKeyPath: "/etc/mcpeg/keys/jwt-private.pem",
+//	    Issuer:         "mcpeg-gateway",
+//	    Audience:       "mcpeg-services",
+//	    ClockSkew:      5 * time.Minute,
+//	}
+//	
+//	validator, err := auth.NewJWTValidator(config, logger, metrics)
+//	if err != nil {
+//	    log.Fatal("JWT validator creation failed:", err)
+//	}
+//	
+//	claims, err := validator.ValidateToken(tokenString)
+//	if err != nil {
+//	    log.Printf("Token validation failed: %v", err)
+//	}
+//
+// JWT claims structure includes standard fields plus MCPEG-specific extensions:
+//   - sub: Subject (user ID)
+//   - roles: Array of role strings for authorization
+//   - sid: Session ID for session tracking
+//   - iat/exp: Standard issued-at and expiration timestamps
+//   - iss/aud: Issuer and audience validation
 package auth
 
 import (

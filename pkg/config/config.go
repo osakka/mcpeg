@@ -1,3 +1,36 @@
+// Package config provides comprehensive configuration management for MCPEG.
+//
+// This package implements a unified configuration system that supports multiple
+// configuration sources with hierarchical override capabilities:
+//
+//   - YAML file loading with structured validation
+//   - Environment variable overrides with type conversion
+//   - Command-line flag integration
+//   - Hot configuration reloading for production systems
+//   - Detailed error reporting for troubleshooting
+//
+// The configuration system follows a priority order where later sources override earlier ones:
+//   1. Default values defined in structs
+//   2. YAML configuration files
+//   3. Environment variables (with MCPEG_ prefix)
+//   4. Command-line flags
+//
+// Example usage:
+//
+//	loader := config.NewLoader(logger)
+//	var cfg ServerConfig
+//	err := loader.LoadFromFile("config.yaml", &cfg, &LoadOptions{
+//	    EnvPrefix:         "MCPEG",
+//	    AllowEnvOverrides: true,
+//	    Validate:          true,
+//	})
+//	if err != nil {
+//	    log.Fatal("Configuration loading failed:", err)
+//	}
+//
+// Environment variable mapping follows the pattern:
+//   server.port -> MCPEG_SERVER_PORT
+//   database.connection.timeout -> MCPEG_DATABASE_CONNECTION_TIMEOUT
 package config
 
 import (

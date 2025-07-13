@@ -1,3 +1,57 @@
+// Package server provides the core MCPEG gateway server implementation with comprehensive HTTP middleware.
+//
+// This package implements the main gateway server that handles MCP protocol requests and routes them
+// to appropriate service adapters, with enterprise-grade middleware and operational features:
+//
+//   - HTTP server with graceful shutdown and health monitoring
+//   - MCP protocol request routing and response handling
+//   - Comprehensive middleware stack (auth, logging, metrics, CORS)
+//   - Service discovery integration with dynamic routing
+//   - Load balancing and circuit breaker pattern implementation
+//   - API versioning with backward compatibility
+//   - Production-ready operational features
+//
+// Server architecture features:
+//   - Modular middleware chain with dependency injection
+//   - Context propagation with trace and span ID support
+//   - Comprehensive error handling with structured responses
+//   - Performance monitoring with detailed metrics collection
+//   - Security features including authentication and authorization
+//   - Rate limiting and request throttling capabilities
+//   - Compression and content negotiation support
+//
+// HTTP middleware stack (applied in order):
+//   1. Request logging and correlation ID assignment
+//   2. CORS handling for cross-origin requests
+//   3. Compression (gzip) for response optimization
+//   4. Authentication and JWT token validation
+//   5. Authorization with role-based access control
+//   6. Rate limiting and throttling
+//   7. Metrics collection and performance monitoring
+//   8. Error recovery and structured error responses
+//
+// Example server configuration:
+//
+//	config := server.Config{
+//	    Host:           "0.0.0.0",
+//	    Port:           8080,
+//	    ReadTimeout:    30 * time.Second,
+//	    WriteTimeout:   30 * time.Second,
+//	    IdleTimeout:    60 * time.Second,
+//	    MaxHeaderBytes: 1 << 20,
+//	}
+//	
+//	srv := server.NewGatewayServer(config, logger, metrics, registry)
+//	if err := srv.Start(ctx); err != nil {
+//	    log.Fatal("Server startup failed:", err)
+//	}
+//
+// MCP request routing:
+//
+//	// Requests are routed based on tool/resource/prompt names
+//	// POST /api/v1/tools/call -> tool execution
+//	// GET /api/v1/resources/read -> resource access  
+//	// POST /api/v1/prompts/get -> prompt processing
 package server
 
 import (

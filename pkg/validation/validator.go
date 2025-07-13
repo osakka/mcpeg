@@ -1,3 +1,61 @@
+// Package validation provides comprehensive validation framework for MCPEG configuration and data.
+//
+// This package implements a flexible validation system that supports multiple validation
+// contexts including configuration files, API requests, and MCP protocol messages:
+//
+//   - Schema-based validation with JSON Schema support
+//   - Custom validation rules with regex and function-based validators
+//   - Configuration validation with environment-specific rules
+//   - API request validation with comprehensive error reporting
+//   - MCP protocol message validation for compliance
+//   - Caching layer for performance optimization
+//   - Detailed error reporting with field-level context
+//
+// Validation features:
+//   - JSON Schema validation for structured data
+//   - Custom validation rule engine with extensible validators
+//   - Configuration file validation with environment awareness
+//   - API input validation with structured error responses
+//   - Performance optimized with validation result caching
+//   - Comprehensive error context for troubleshooting
+//   - Type-safe validation with reflection-based field access
+//
+// Supported validation types:
+//   - Required field validation
+//   - Type checking (string, number, boolean, array, object)
+//   - Format validation (email, URL, UUID, regex patterns)
+//   - Range validation (min/max length, min/max value)
+//   - Enum validation (allowed values)
+//   - Custom business logic validation
+//
+// Example usage:
+//
+//	validator := validation.NewValidator(logger, validationConfig)
+//	
+//	// Validate configuration
+//	err := validator.ValidateConfig(configStruct, "production")
+//	if err != nil {
+//	    log.Printf("Configuration validation failed: %v", err)
+//	}
+//	
+//	// Validate API request
+//	result := validator.ValidateAPIRequest(requestData, schemaName)
+//	if !result.Valid {
+//	    return result.Errors
+//	}
+//
+// Custom validation rules:
+//
+//	validator.RegisterRule("custom_email", func(value interface{}) error {
+//	    email, ok := value.(string)
+//	    if !ok {
+//	        return fmt.Errorf("email must be a string")
+//	    }
+//	    if !isValidEmail(email) {
+//	        return fmt.Errorf("invalid email format")
+//	    }
+//	    return nil
+//	})
 package validation
 
 import (
