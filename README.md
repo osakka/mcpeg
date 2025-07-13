@@ -7,29 +7,27 @@
   **Pronounced "MC peg" • The Peg That Connects Model Contexts**
 </div>
 
-> ✅ **PRODUCTION READY**: MCpeg v1.0.0 is production-ready with complete MCP protocol compliance. Built using the [XVC (Extreme Vibe Coding)](https://github.com/osakka/xvc) framework for rigorous development standards.
-
-**MCpeg** is a high-performance gateway service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side. Like a peg that connects different pieces, MCpeg bridges the gap between MCP-compliant clients and diverse backend services.
+**MCpeg** is a gateway service that provides a Model Context Protocol (MCP) API on one side and integrates with external services via API calls or binary invocations on the other side. Like a peg that connects different pieces, MCpeg bridges the gap between MCP-compliant clients and diverse backend services.
 
 ## Overview
 
 **MCpeg** acts as a bridge between MCP-compliant clients and various backend services, providing:
-- **Full MCP Protocol Compliance** - Complete Model Context Protocol 2025-03-26 specification support
-- **Production-Ready Gateway** - High-performance request routing with intelligent load balancing
-- **Advanced Service Discovery** - DNS, Consul, Kubernetes, and static configuration support
-- **Enterprise Features** - Circuit breaker patterns, rate limiting, compression, comprehensive metrics
-- **Complete Admin API** - 22 RESTful endpoints for full gateway management and monitoring
-- **Flexible Service Integration** - REST APIs, binary calls, and automatic capability detection
-- **YAML-Based Configuration** - Advanced configuration system with environment variable overrides
-- **API-First Development** - Generated code from official MCP specifications
-- **Production Observability** - Prometheus metrics, structured logging, health checks, and debugging endpoints
-- **Enterprise Plugin System** - Complete MCP Plugin Integration with 20 specialized endpoints
-  - **Advanced Discovery** - Intelligent plugin discovery with semantic capability analysis, quality metrics, dependency resolution, and automated conflict detection
-  - **Inter-Plugin Communication** - Message passing, event bus, and service discovery between plugins
-  - **Hot Reloading** - Zero-downtime plugin updates with comprehensive operation tracking and rollback
-  - **Built-in Services** - Memory, Git, and Editor services with extensible plugin architecture
-- **Daemon Process Management** - Full daemon support with PID files, signal handling, and process control
-- **System Integration** - Systemd service files, management scripts, and automated installation
+- **MCP Protocol Support** - Model Context Protocol implementation
+- **Gateway Architecture** - Request routing with load balancing capabilities
+- **Service Discovery** - DNS, Consul, Kubernetes, and static configuration support
+- **Core Features** - Circuit breaker patterns, rate limiting, compression, metrics
+- **Admin API** - RESTful endpoints for gateway management and monitoring
+- **Service Integration** - REST APIs, binary calls, and capability detection
+- **YAML Configuration** - Configuration system with environment variable overrides
+- **API-First Development** - Generated code from MCP specifications
+- **Observability** - Prometheus metrics, structured logging, health checks
+- **Plugin System** - MCP Plugin Integration with specialized endpoints
+  - **Plugin Discovery** - Plugin discovery with capability analysis and dependency resolution
+  - **Inter-Plugin Communication** - Message passing and event bus between plugins
+  - **Hot Reloading** - Plugin updates with operation tracking and rollback
+  - **Built-in Services** - Memory, Git, and Editor services with extensible architecture
+- **Daemon Process Management** - Daemon support with PID files, signal handling, and process control
+- **System Integration** - Systemd service files, management scripts, and installation
 
 ## Project Structure
 
@@ -69,57 +67,57 @@ This project follows the [XVC (Extreme Vibe Coding)](https://github.com/osakka/x
 
 ## Project Status
 
-🎉 **Current Phase**: Production-Ready Implementation Complete
+**Current Phase**: Active Development
 
-Major implementation milestone achieved:
-- ✅ **All 18 Major Placeholders Implemented** - Complete transformation from skeleton to production-ready
-- ✅ **Enterprise-Grade Features** - Load balancing, service discovery, circuit breakers, rate limiting
-- ✅ **Comprehensive Admin API** - 22 RESTful endpoints for complete gateway management
-- ✅ **Production Observability** - Prometheus metrics, structured logging, health monitoring
-- ✅ **Full MCP Compliance** - Complete Model Context Protocol 2025-03-26 specification support
-- ✅ **Plugin System** - Memory, Git, and Editor services with extensible architecture and service registry integration
-- ✅ **MCP Plugin Integration** - RBAC-enabled plugin access through unified MCP JSON-RPC API with JWT authentication
-- ✅ **Daemon Process Management** - Full production daemon with PID files, signal handling, systemd integration
-- ✅ **Bar-Raising Quality** - Thread-safe operations, proper error handling, resource cleanup
-- ✅ **Comprehensive Testing** - Automated MCP test client with 100% validation coverage
+Major features implemented:
+- ✅ **Core Implementation** - Basic gateway functionality with MCP protocol support
+- ✅ **Gateway Features** - Load balancing, service discovery, circuit breakers, rate limiting
+- ✅ **Admin API** - RESTful endpoints for gateway management
+- ✅ **Observability** - Prometheus metrics, structured logging, health monitoring
+- ✅ **MCP Support** - Model Context Protocol implementation
+- ✅ **Plugin System** - Memory, Git, and Editor services with extensible architecture
+- ✅ **MCP Plugin Integration** - RBAC-enabled plugin access through MCP JSON-RPC API
+- ✅ **Daemon Process Management** - Daemon with PID files, signal handling, systemd integration
+- ✅ **Quality Standards** - Thread-safe operations, error handling, resource cleanup
+- ✅ **Testing Infrastructure** - MCP test client with validation coverage
 - 📋 All decisions documented in ADRs following XVC methodology
-- 🔍 100% LLM-debuggable through comprehensive logging
+- 🔍 LLM-debuggable through comprehensive logging
 
-**MCpeg** is now a complete, production-ready gateway that truly lives up to its name - the peg that seamlessly connects model contexts!
+**MCpeg** provides a solid foundation for connecting model contexts with backend services.
 
 ## Key Features
 
-### 🚀 **Production-Ready Gateway**
-- **High-Performance Routing** - Intelligent load balancing with multiple strategies (round-robin, least-connections, weighted, hash-based)
-- **Circuit Breaker Protection** - Automatic failure detection and isolation with configurable thresholds
-- **Health-Aware Load Balancing** - Success rate monitoring and intelligent service filtering
+### 🚀 **Gateway Architecture**
+- **Request Routing** - Load balancing with multiple strategies (round-robin, least-connections, weighted, hash-based)
+- **Circuit Breaker Protection** - Failure detection and isolation with configurable thresholds
+- **Health-Aware Load Balancing** - Success rate monitoring and service filtering
 - **HTTP Middleware Stack** - Gzip compression, rate limiting, CORS, request logging, and panic recovery
 
-### 🔍 **Advanced Service Discovery**
+### 🔍 **Service Discovery**
 - **DNS Discovery** - SRV record lookups with multi-domain support
-- **Consul Integration** - Full API integration with health filtering and metadata extraction
-- **Kubernetes Integration** - Native API with RBAC authentication and label selectors
-- **Static Configuration** - File-based service definitions with automatic capability detection
-- **Auto-Registration** - Discovered services automatically register with the gateway
+- **Consul Integration** - API integration with health filtering and metadata extraction
+- **Kubernetes Integration** - API with RBAC authentication and label selectors
+- **Static Configuration** - File-based service definitions with capability detection
+- **Auto-Registration** - Discovered services register with the gateway
 
-### 📊 **Enterprise Observability**
-- **Prometheus Metrics** - Comprehensive metrics for HTTP requests, services, load balancer, health, and system resources
-- **Structured Logging** - LLM-optimized logs with complete context for troubleshooting
-- **Health Endpoints** - Liveness, readiness, and detailed health status checking
-- **Admin API** - 22 RESTful endpoints for monitoring, configuration, and management
-- **Security Features** - API key authentication for admin endpoints with comprehensive audit logging
-- **Testing Coverage** - Complete test suite for plugin system, authentication, and service integration
-- **Standardized Architecture** - Centralized path management and flag processing with single source of truth
+### 📊 **Observability**
+- **Prometheus Metrics** - Metrics for HTTP requests, services, load balancer, health, and system resources
+- **Structured Logging** - LLM-optimized logs with context for troubleshooting
+- **Health Endpoints** - Liveness, readiness, and health status checking
+- **Admin API** - RESTful endpoints for monitoring, configuration, and management
+- **Security Features** - API key authentication for admin endpoints with audit logging
+- **Testing Coverage** - Test suite for plugin system, authentication, and service integration
+- **Standardized Architecture** - Centralized path management and flag processing
 
-### ⚙️ **Flexible Configuration**
-- **YAML Configuration** - Advanced configuration loading with environment variable overrides
+### ⚙️ **Configuration**
+- **YAML Configuration** - Configuration loading with environment variable overrides
 - **Hot Configuration Updates** - Runtime configuration changes via Admin API
-- **Security Controls** - Validation and sanitization for all configuration updates
+- **Security Controls** - Validation and sanitization for configuration updates
 - **Environment-Specific Configs** - Development and production configuration profiles
 
 ## Getting Started
 
-> **Note**: While feature-complete, this software follows rapid development practices. APIs are stable but may evolve.
+> **Note**: This software is under active development. APIs may evolve as features are refined and extended.
 
 ### Prerequisites
 
