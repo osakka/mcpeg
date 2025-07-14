@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcpeg-gateway": {
+      "transport": {
+        "type": "sse", 
+        "url": "http://your-server-ip:8080/sse",
+        "messageEndpoint": "http://your-server-ip:8080/message"
+      },
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}

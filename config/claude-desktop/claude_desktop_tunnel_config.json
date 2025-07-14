@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "mcpeg-gateway": {
+      "command": "ssh",
+      "args": [
+        "-L", "8080:localhost:8080",
+        "your-server-hostname",
+        "cd /opt/mcpeg && ./build/mcpeg gateway --dev --config config/development.yaml"
+      ],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}

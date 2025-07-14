@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcpeg-gateway": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      }
+    }
+  }
+}

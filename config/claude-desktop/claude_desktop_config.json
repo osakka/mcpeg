@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mcpeg-gateway": {
+      "command": "ssh",
+      "args": ["your-server-hostname", "/opt/mcpeg/build/mcpeg", "gateway", "--dev"],
+      "env": {
+        "LOG_LEVEL": "info",
+        "MCP_DEBUG": "false"
+      }
+    }
+  }
+}
